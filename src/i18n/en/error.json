@@ -1,0 +1,12 @@
+{
+  "Hello": "Bonjour",
+  "Success": "success",
+  "userExistError": "user with phone: {phone} already exist",
+  "IncorrectVerifyCode": "Incorrect Verification Code",
+  "WrongCredentials": "Wrong Credentials",
+  "PhoneNumberNotFound": "Phone number for verification not found",
+  "SMSSendFIled": "SMS sending failed",
+  "UserNotfound": "User not found",
+  "resetCodeTime": "reset code time expired pleas resend it!",
+  "prongResetCode": "Reset cod is incorrect"
+}
