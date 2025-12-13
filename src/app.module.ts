@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './user/user.module';
+import { AdminModule } from './admin/admin.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { I18nModule, HeaderResolver } from 'nestjs-i18n';
 import { join } from 'path';
@@ -37,6 +38,7 @@ import { ConfigModule } from '@nestjs/config';
       resolvers: [new HeaderResolver(['x-custom-lang'])],
     }),
     UserModule,
+    AdminModule,
     TranslationModule,
   ],
   controllers: [AppController],
