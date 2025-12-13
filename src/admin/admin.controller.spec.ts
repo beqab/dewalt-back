@@ -18,4 +18,3 @@ describe('AdminController', () => {
     expect(controller).toBeDefined();
   });
 });
-

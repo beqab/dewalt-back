@@ -4,7 +4,11 @@ export class UserResponseDto {
   @ApiProperty({ description: 'User ID', example: 1 })
   id: number;
 
-  @ApiProperty({ description: 'User name', example: 'John Doe', required: false })
+  @ApiProperty({
+    description: 'User name',
+    example: 'John Doe',
+    required: false,
+  })
   name?: string;
 
   @ApiProperty({
@@ -14,4 +18,3 @@ export class UserResponseDto {
   })
   email?: string;
 }
-

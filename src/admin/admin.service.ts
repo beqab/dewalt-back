@@ -145,6 +145,99 @@ export class AdminService {
     }
   }
 
+  async currentAdmin(adminId: string) {
+    try {
+      const adminData = await this.adminModel
+        .findById(adminId)
+        .select('-password -refreshToken')
+        .lean();
+
+      if (!adminData) {
+        throw new NotFoundException('Admin not found');
+      }
+
+      return {
+        admin: adminData,
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to get admin');
+    }
+  }
+
+  async getToken(refreshToken: string) {
+    try {
+      console.log(refreshToken, 'refreshToken');
+      // Verify and decode the refresh token
+      const decoded: { adminId: string } = this.jwtService.verify(
+        refreshToken,
+        {
+          secret: process.env.JWT_SECRET || 'your-secret-key',
+        },
+      );
+
+      console.log(decoded, 'decoded');
+
+      const admin = await this.adminModel.findById(decoded.adminId);
+
+      if (!admin || admin.refreshToken.indexOf(refreshToken) === -1) {
+        throw new BadRequestException('Invalid refresh token');
+      }
+
+      const adminId = admin._id as string;
+
+      // Generate new access token
+      const newToken = this.jwtService.sign(
+        {
+          adminId,
+          username: admin.username,
+        },
+        {
+          expiresIn: '30m',
+        },
+      );
+
+      const newRefreshToken = this.jwtService.sign(
+        {
+          adminId,
+          username: admin.username,
+        },
+        {
+          expiresIn: '7d',
+        },
+      );
+
+      // Replace the used refresh token in the admin's refreshToken array with the new one
+      const updatedRefreshTokens = (admin.refreshToken || []).map(
+        (token: string) => (token === refreshToken ? newRefreshToken : token),
+      );
+      await this.adminModel.findByIdAndUpdate(adminId, {
+        refreshToken: updatedRefreshTokens,
+      });
+
+      const result = await this.adminModel
+        .findById(adminId)
+        .select('-password')
+        .lean();
+
+      return {
+        message: 'Token refreshed successfully',
+        token: newToken,
+        tokenExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        refreshToken: newRefreshToken,
+        admin: result,
+      };
+    } catch (error) {
+      console.log(error, 'error');
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Token refresh failed');
+    }
+  }
+
   async update(
     id: string,
     updateAdminDto: UpdateAdminDto,

@@ -26,4 +26,3 @@ export class AdminResponseDto {
   })
   updatedAt: Date;
 }
-

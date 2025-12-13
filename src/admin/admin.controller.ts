@@ -69,6 +69,16 @@ export class AdminController {
     return this.adminService.login(loginDto);
   }
 
+  @Post('get-token')
+  @ApiOperation({ summary: 'Get token' })
+  @ApiResponse({
+    status: 200,
+    description: 'Token obtained successfully',
+  })
+  getToken(@Body('refreshToken') refreshToken: string) {
+    return this.adminService.getToken(refreshToken);
+  }
+
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete admin by ID' })
