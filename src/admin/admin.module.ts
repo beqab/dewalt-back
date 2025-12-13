@@ -11,7 +11,7 @@ import { Admin, AdminSchema } from './entities/admin.entity';
     MongooseModule.forFeature([{ name: Admin.name, schema: AdminSchema }]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
+      useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'your-secret-key',
         signOptions: { expiresIn: '30m' },
       }),

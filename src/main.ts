@@ -31,6 +31,15 @@ async function bootstrap() {
     .setVersion('1.0')
     .addTag('admin', 'Admin management endpoints')
     .addTag('user', 'User management endpoints')
+    .addBearerAuth(
+      {
+        type: 'apiKey',
+        in: 'header',
+        name: 'authorization',
+        description: 'Enter JWT token directly (without Bearer prefix)',
+      },
+      'JWT-auth', // This name here is important for matching up with @ApiBearerAuth() in your controller!
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
