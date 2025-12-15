@@ -31,6 +31,7 @@ async function bootstrap() {
     .setVersion('1.0')
     .addTag('admin', 'Admin management endpoints')
     .addTag('user', 'User management endpoints')
+    .addTag('banner-slider', 'Banner slider management endpoints')
     .addBearerAuth(
       {
         type: 'apiKey',

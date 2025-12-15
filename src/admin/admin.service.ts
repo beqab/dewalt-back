@@ -131,6 +131,15 @@ export class AdminService {
         .select('-password')
         .lean();
 
+      console.log(
+        {
+          admin: result,
+          token,
+          tokenExpiresAt,
+          refreshToken,
+        },
+        'result login',
+      );
       return {
         admin: result,
         token,
