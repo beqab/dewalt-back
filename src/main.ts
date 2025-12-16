@@ -37,6 +37,7 @@ async function bootstrap() {
     .addTag('user', 'User management endpoints')
     .addTag('banner-slider', 'Banner slider management endpoints')
     .addTag('news', 'News articles management endpoints')
+    .addTag('ads', 'Ads management endpoints')
     .addBearerAuth(
       {
         type: 'apiKey',

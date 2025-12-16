@@ -5,6 +5,7 @@ import { UserModule } from './user/user.module';
 import { AdminModule } from './admin/admin.module';
 import { BannerSliderModule } from './banner-slider/banner-slider.module';
 import { NewsModule } from './news/news.module';
+import { AdsModule } from './ads/ads.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { I18nModule, HeaderResolver } from 'nestjs-i18n';
 import { join } from 'path';
@@ -65,6 +66,7 @@ import { JwtModule } from '@nestjs/jwt';
     AdminModule,
     BannerSliderModule,
     NewsModule,
+    AdsModule,
     TranslationModule,
   ],
   controllers: [AppController],
