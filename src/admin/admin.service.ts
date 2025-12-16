@@ -222,6 +222,7 @@ export class AdminService {
       const updatedRefreshTokens = (admin.refreshToken || []).map(
         (token: string) => (token === refreshToken ? newRefreshToken : token),
       );
+
       await this.adminModel.findByIdAndUpdate(adminId, {
         refreshToken: updatedRefreshTokens,
       });
@@ -267,6 +268,57 @@ export class AdminService {
 
     if (!result) {
       throw new NotFoundException(`Admin with ID ${id} not found`);
+    }
+  }
+
+  async logout(
+    adminId: string,
+    all: boolean = false,
+    refreshToken?: string,
+  ): Promise<{ message: string }> {
+    try {
+      const admin = await this.adminModel.findById(adminId);
+
+      if (!admin) {
+        throw new NotFoundException('Admin not found');
+      }
+
+      let updatedRefreshTokens: string[];
+
+      if (all) {
+        // Remove all refresh tokens (logout from all devices)
+        updatedRefreshTokens = [];
+      } else {
+        // Remove specific refresh token
+        if (!refreshToken) {
+          throw new BadRequestException(
+            'Refresh token is required when logging out from a single device',
+          );
+        }
+
+        // Filter out the specific refresh token
+        updatedRefreshTokens = (admin.refreshToken || []).filter(
+          (token: string) => token !== refreshToken,
+        );
+      }
+
+      await this.adminModel.findByIdAndUpdate(adminId, {
+        refreshToken: updatedRefreshTokens,
+      });
+
+      return {
+        message: all
+          ? 'Logged out from all devices successfully'
+          : 'Logout successful',
+      };
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException('Logout failed');
     }
   }
 }

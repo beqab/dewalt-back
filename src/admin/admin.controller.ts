@@ -148,4 +148,37 @@ export class AdminController {
   remove(@Param('id') id: string) {
     return this.adminService.remove(id);
   }
+
+  @Post('logout')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Logout admin' })
+  @ApiResponse({
+    status: 200,
+    description: 'Admin logged out successfully',
+  })
+  logout(
+    @CurrentAdmin() admin: CurrentAdminType,
+    @Body() body: { refreshToken?: string },
+  ) {
+    return this.adminService.logout(admin.id, false, body?.refreshToken);
+  }
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing token',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Admin not found',
+  })
+  logoutAll(
+    @CurrentAdmin() admin: CurrentAdminType,
+    @Body() body: { refreshToken?: string; all?: boolean },
+  ) {
+    return this.adminService.logout(
+      admin.id,
+      body?.all || false,
+      body.refreshToken,
+    );
+  }
 }
