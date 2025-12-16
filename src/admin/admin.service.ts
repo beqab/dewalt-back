@@ -11,6 +11,7 @@ import { Admin, AdminDocument } from './entities/admin.entity';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { LoginAdminDto } from './dto/login-admin.dto';
+import { ConfigService } from '@nestjs/config';
 
 export type AdminResponse = Omit<Admin, 'password'> & { _id?: any };
 
@@ -19,6 +20,7 @@ export class AdminService {
   constructor(
     @InjectModel(Admin.name) private adminModel: Model<AdminDocument>,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   async findAll(): Promise<AdminDocument[]> {
@@ -183,7 +185,7 @@ export class AdminService {
       const decoded: { adminId: string } = this.jwtService.verify(
         refreshToken,
         {
-          secret: process.env.JWT_SECRET || 'your-secret-key',
+          secret: this.configService.get<string>('ADMIN_ACCESS_SECRET'),
         },
       );
 

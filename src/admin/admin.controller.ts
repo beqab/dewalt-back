@@ -9,7 +9,10 @@ import {
   Body,
   UseGuards,
   UseInterceptors,
+  Res,
+  Req,
 } from '@nestjs/common';
+import type { Response, Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -17,6 +20,7 @@ import {
   ApiParam,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import { BadRequestException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
@@ -107,12 +111,29 @@ export class AdminController {
     description: 'Admin logged in successfully',
     type: AdminResponseDto,
   })
-  login(@Body() loginDto: LoginAdminDto) {
-    return this.adminService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginAdminDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.adminService.login(loginDto);
+
+    // Set refresh token as HTTP-only cookie
+    console.log(result.refreshToken, 'result.refreshToken');
+    res.cookie('refresh_token', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+      path: '/',
+    });
+
+    // Return refreshToken in response body ONLY for NextAuth server-side storage
+    // It will be stored in JWT and used for server-side refresh calls
+    // This is a trade-off: we need it server-side, but it's stored in JWT (not accessible via JS)
+    return result;
   }
 
   @Post('get-token')
-  @UseGuards(AdminAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({
@@ -123,8 +144,57 @@ export class AdminController {
     status: 401,
     description: 'Unauthorized - Invalid or missing token',
   })
-  getToken(@Body('refreshToken') refreshToken: string) {
-    return this.adminService.getToken(refreshToken);
+  async getToken(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    console.log('🔄 start refresh StartIcon');
+
+    // Log request headers to debug
+    console.log('Request headers:', req.headers.cookie);
+    console.log('Request cookies object:', req.cookies);
+
+    // Try to read from cookies first (when browser sends automatically)
+    let refreshToken = (req.cookies as { refresh_token?: string })
+      ?.refresh_token;
+
+    // If not in cookies, try to parse from Cookie header manually
+    // This handles cases where cookies are forwarded manually from server-side requests
+    if (!refreshToken && req.headers.cookie) {
+      const cookieHeader = req.headers.cookie;
+      const match = cookieHeader.match(/refresh_token=([^;]+)/);
+      if (match) {
+        refreshToken = match[1];
+        console.log(
+          'Found refresh token in Cookie header:',
+          refreshToken.substring(0, 20) + '...',
+        );
+      }
+    }
+
+    console.log(
+      'Final refreshToken:',
+      refreshToken ? refreshToken.substring(0, 20) + '...' : 'undefined',
+    );
+
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      throw new BadRequestException('Refresh token not found');
+    }
+
+    const result = await this.adminService.getToken(refreshToken);
+
+    // Set new refresh token as HTTP-only cookie
+    res.cookie('refresh_token', result.refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+      path: '/',
+    });
+
+    // Return refreshToken in response body for NextAuth to update JWT
+    // It will be stored in JWT and used for server-side refresh calls
+    return result;
   }
 
   @Delete(':id')
@@ -152,17 +222,11 @@ export class AdminController {
   @Post('logout')
   @UseGuards(AdminAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Logout admin' })
+  @ApiOperation({ summary: 'Logout admin (single device)' })
   @ApiResponse({
     status: 200,
     description: 'Admin logged out successfully',
   })
-  logout(
-    @CurrentAdmin() admin: CurrentAdminType,
-    @Body() body: { refreshToken?: string },
-  ) {
-    return this.adminService.logout(admin.id, false, body?.refreshToken);
-  }
   @ApiResponse({
     status: 401,
     description: 'Unauthorized - Invalid or missing token',
@@ -171,14 +235,62 @@ export class AdminController {
     status: 404,
     description: 'Admin not found',
   })
-  logoutAll(
+  async logout(
     @CurrentAdmin() admin: CurrentAdminType,
-    @Body() body: { refreshToken?: string; all?: boolean },
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.adminService.logout(
+    // Read refresh token from cookie
+    const refreshToken = (req.cookies as { refresh_token?: string })
+      ?.refresh_token;
+
+    const result = await this.adminService.logout(
       admin.id,
-      body?.all || false,
-      body.refreshToken,
+      false,
+      refreshToken,
     );
+
+    // Clear refresh token cookie
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+
+    return result;
+  }
+
+  @Post('logout-all')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Logout admin from all devices' })
+  @ApiResponse({
+    status: 200,
+    description: 'Admin logged out from all devices successfully',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid or missing token',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Admin not found',
+  })
+  async logoutAll(
+    @CurrentAdmin() admin: CurrentAdminType,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.adminService.logout(admin.id, true);
+
+    // Clear refresh token cookie
+    res.clearCookie('refresh_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+
+    return result;
   }
 }

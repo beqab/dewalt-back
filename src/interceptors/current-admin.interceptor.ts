@@ -37,8 +37,7 @@ export class CurrentAdminInterceptor implements NestInterceptor {
     }
 
     try {
-      const secret =
-        this.configService.get<string>('JWT_SECRET') || 'your-secret-key';
+      const secret = this.configService.get<string>('ADMIN_ACCESS_SECRET');
       const payload = this.jwtService.verify<JwtPayload>(authorizationHeader, {
         secret,
       });
