@@ -6,6 +6,7 @@ import { AdminModule } from './admin/admin.module';
 import { BannerSliderModule } from './banner-slider/banner-slider.module';
 import { NewsModule } from './news/news.module';
 import { AdsModule } from './ads/ads.module';
+import { CategoriesModule } from './categories/categories.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { I18nModule, HeaderResolver } from 'nestjs-i18n';
 import { join } from 'path';
@@ -42,21 +43,21 @@ import { JwtModule } from '@nestjs/jwt';
     }),
     I18nModule.forRootAsync({
       useFactory: () => {
-        // In production (dist), use __dirname. In dev (src), use process.cwd() + src/i18n
-        const isProduction = __dirname.includes('dist');
-        const i18nPath = isProduction
-          ? join(__dirname, 'i18n')
-          : join(process.cwd(), 'src', 'i18n');
+        // Always use src/i18n, it's more reliable in both dev and production
+        const i18nPath = join(process.cwd(), 'src', 'i18n');
 
         return {
           fallbackLanguage: 'en',
           loaderOptions: {
             path: i18nPath,
-            watch: true,
+            watch:
+              !process.env.NODE_ENV || process.env.NODE_ENV === 'development',
           },
           typesOutputPath: join(
-            __dirname,
-            '../src/generated/i18n.generated.ts',
+            process.cwd(),
+            'src',
+            'generated',
+            'i18n.generated.ts',
           ),
         };
       },
@@ -67,6 +68,7 @@ import { JwtModule } from '@nestjs/jwt';
     BannerSliderModule,
     NewsModule,
     AdsModule,
+    CategoriesModule,
     TranslationModule,
   ],
   controllers: [AppController],
