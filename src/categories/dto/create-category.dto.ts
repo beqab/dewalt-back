@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsMongoId } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsArray,
+  IsMongoId,
+  IsOptional,
+} from 'class-validator';
 import { LocalizedTextDto } from './localized-text.dto';
 
 export class CreateCategoryDto {
@@ -12,7 +18,7 @@ export class CreateCategoryDto {
   name: LocalizedTextDto;
 
   @ApiProperty({
-    description: 'Category slug (URL-friendly identifier)',
+    description: 'Category slug (URL-friendly identifier, must be unique)',
     example: 'power-tools',
   })
   @IsNotEmpty()
@@ -20,10 +26,13 @@ export class CreateCategoryDto {
   slug: string;
 
   @ApiProperty({
-    description: 'Brand ID',
-    example: '507f1f77bcf86cd799439011',
+    description: 'Brand IDs (optional, can be assigned later)',
+    example: ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'],
+    type: [String],
+    required: false,
   })
-  @IsNotEmpty()
-  @IsMongoId()
-  brandId: string;
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  brandIds?: string[];
 }

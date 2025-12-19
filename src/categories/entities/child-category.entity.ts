@@ -14,15 +14,21 @@ export class ChildCategory {
   })
   name: LocalizedText;
 
-  @Prop({ type: String, required: true })
-  slug: string; // URL-friendly identifier
+  @Prop({ type: String, required: true, unique: true })
+  slug: string; // URL-friendly identifier (unique globally)
+
+  @Prop({
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Brand' }],
+    default: [],
+  })
+  brandIds: MongooseSchema.Types.ObjectId[]; // Many-to-many relationship with brands
 
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Category',
-    required: true,
+    required: false,
   })
-  categoryId: MongooseSchema.Types.ObjectId;
+  categoryId?: MongooseSchema.Types.ObjectId; // Optional, can be assigned later
 
   @Prop({ default: Date.now })
   createdAt: Date;

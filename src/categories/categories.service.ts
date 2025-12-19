@@ -131,16 +131,10 @@ export class CategoriesService {
 
   async removeBrand(id: string): Promise<void> {
     try {
-      // Check if brand has categories
-      const categoriesCount = await this.categoryModel
-        .countDocuments({ brandId: id })
+      // Remove brand reference from all categories that have this brand
+      await this.categoryModel
+        .updateMany({ brandIds: id }, { $pull: { brandIds: id } })
         .exec();
-
-      if (categoriesCount > 0) {
-        throw new BadRequestException(
-          'Cannot delete brand with existing categories',
-        );
-      }
 
       const result = await this.brandModel.findByIdAndDelete(id).exec();
       if (!result) {
@@ -163,7 +157,7 @@ export class CategoriesService {
     try {
       return await this.categoryModel
         .find()
-        .populate('brandId', 'name slug')
+        .populate('brandIds', 'name slug')
         .sort({ createdAt: -1 })
         .exec();
     } catch (error) {
@@ -174,8 +168,8 @@ export class CategoriesService {
   async findCategoriesByBrand(brandId: string): Promise<CategoryDocument[]> {
     try {
       return await this.categoryModel
-        .find({ brandId })
-        .populate('brandId', 'name slug')
+        .find({ brandIds: brandId })
+        .populate('brandIds', 'name slug')
         .sort({ createdAt: -1 })
         .exec();
     } catch (error) {
@@ -187,7 +181,7 @@ export class CategoriesService {
     try {
       const category = await this.categoryModel
         .findById(id)
-        .populate('brandId', 'name slug')
+        .populate('brandIds', 'name slug')
         .exec();
 
       if (!category) {
@@ -207,28 +201,34 @@ export class CategoriesService {
     createCategoryDto: CreateCategoryDto,
   ): Promise<CategoryDocument> {
     try {
-      // Verify brand exists
-      const brand = await this.brandModel
-        .findById(createCategoryDto.brandId)
-        .exec();
-      if (!brand) {
-        throw new NotFoundException(
-          `Brand with ID ${createCategoryDto.brandId} not found`,
-        );
-      }
-
-      // Check if category with this slug already exists for this brand
+      // Check if category with this slug already exists (slug must be unique globally)
       const existingCategory = await this.categoryModel
         .findOne({
           slug: createCategoryDto.slug,
-          brandId: createCategoryDto.brandId,
         })
         .exec();
 
       if (existingCategory) {
         throw new ConflictException(
-          `Category with slug ${createCategoryDto.slug} already exists for this brand`,
+          `Category with slug ${createCategoryDto.slug} already exists`,
         );
+      }
+
+      // Verify brands exist if provided
+      if (createCategoryDto.brandIds && createCategoryDto.brandIds.length > 0) {
+        const brands = await this.brandModel
+          .find({ _id: { $in: createCategoryDto.brandIds } })
+          .exec();
+
+        if (brands.length !== createCategoryDto.brandIds.length) {
+          const foundIds = brands.map((b) => String(b._id));
+          const missingIds = createCategoryDto.brandIds.filter(
+            (id) => !foundIds.includes(id),
+          );
+          throw new NotFoundException(
+            `Brand(s) with ID(s) ${missingIds.join(', ')} not found`,
+          );
+        }
       }
 
       return await this.categoryModel.create(createCategoryDto);
@@ -249,24 +249,77 @@ export class CategoriesService {
     updateCategoryDto: UpdateCategoryDto,
   ): Promise<CategoryDocument> {
     try {
-      // If brandId is being updated, verify brand exists
-      if (updateCategoryDto.brandId) {
-        const brand = await this.brandModel
-          .findById(updateCategoryDto.brandId)
-          .exec();
-        if (!brand) {
-          throw new NotFoundException(
-            `Brand with ID ${updateCategoryDto.brandId} not found`,
-          );
+      // Get current category to check for brand removals
+      const currentCategory = await this.categoryModel.findById(id).exec();
+      if (!currentCategory) {
+        throw new NotFoundException(`Category with ID ${id} not found`);
+      }
+
+      const currentBrandIds = (currentCategory.brandIds || []).map(
+        (brandId) => {
+          // Handle ObjectId instances - they have toString method
+          if (brandId && typeof brandId === 'object') {
+            return (brandId as { toString(): string }).toString();
+          }
+          // Handle string IDs
+          if (typeof brandId === 'string') {
+            return brandId;
+          }
+          // Fallback - should not reach here in normal cases
+          return String(brandId);
+        },
+      );
+
+      // If brandIds are being updated
+      if (updateCategoryDto.brandIds !== undefined) {
+        // Verify new brandIds exist
+        if (updateCategoryDto.brandIds.length > 0) {
+          const brands = await this.brandModel
+            .find({ _id: { $in: updateCategoryDto.brandIds } })
+            .exec();
+
+          if (brands.length !== updateCategoryDto.brandIds.length) {
+            const foundIds = brands.map((b) => String(b._id));
+            const missingIds = updateCategoryDto.brandIds.filter(
+              (id) => !foundIds.includes(id),
+            );
+            throw new NotFoundException(
+              `Brand(s) with ID(s) ${missingIds.join(', ')} not found`,
+            );
+          }
+        }
+
+        // Check which brands are being removed
+        const newBrandIds = updateCategoryDto.brandIds.map((brandId) =>
+          String(brandId),
+        );
+        const removedBrandIds = currentBrandIds.filter(
+          (brandId) => !newBrandIds.includes(brandId),
+        );
+
+        // If brands are being removed, remove brand references from child categories
+        // that have this categoryId and the removed brands
+        if (removedBrandIds.length > 0) {
+          for (const removedBrandId of removedBrandIds) {
+            // Find child categories that have this categoryId and the removed brandId
+            await this.childCategoryModel
+              .updateMany(
+                {
+                  categoryId: id,
+                  brandIds: removedBrandId,
+                },
+                {
+                  $pull: { brandIds: removedBrandId },
+                },
+              )
+              .exec();
+          }
         }
       }
 
-      console.log(updateCategoryDto, 'updateCategoryDto++++++++');
-      // Slug uniqueness is checked per brand in create, but we allow duplicates across different brands
-
       const category = await this.categoryModel
         .findByIdAndUpdate(id, updateCategoryDto, { new: true })
-        .populate('brandId', 'name slug')
+        .populate('brandIds', 'name slug')
         .exec();
 
       if (!category) {
@@ -275,7 +328,6 @@ export class CategoriesService {
 
       return category;
     } catch (error) {
-      console.log(error, 'error++++++++');
       if (
         error instanceof NotFoundException ||
         error instanceof ConflictException
@@ -320,7 +372,8 @@ export class CategoriesService {
     try {
       return await this.childCategoryModel
         .find()
-        .populate('categoryId', 'name slug brandId')
+        .populate('brandIds', 'name slug')
+        .populate('categoryId', 'name slug')
         .sort({ createdAt: -1 })
         .exec();
     } catch (error) {
@@ -328,18 +381,20 @@ export class CategoriesService {
     }
   }
 
-  async findChildCategoriesByCategory(
+  async findChildCategoriesByBrandAndCategory(
+    brandId: string,
     categoryId: string,
   ): Promise<ChildCategoryDocument[]> {
     try {
       return await this.childCategoryModel
-        .find({ categoryId })
-        .populate('categoryId', 'name slug brandId')
+        .find({ brandIds: brandId, categoryId })
+        .populate('brandIds', 'name slug')
+        .populate('categoryId', 'name slug')
         .sort({ createdAt: -1 })
         .exec();
     } catch (error) {
       throw new BadRequestException(
-        'Failed to fetch child categories by category',
+        'Failed to fetch child categories by brand and category',
       );
     }
   }
@@ -348,7 +403,8 @@ export class CategoriesService {
     try {
       const childCategory = await this.childCategoryModel
         .findById(id)
-        .populate('categoryId', 'name slug brandId')
+        .populate('brandIds', 'name slug')
+        .populate('categoryId', 'name slug')
         .exec();
 
       if (!childCategory) {
@@ -368,28 +424,49 @@ export class CategoriesService {
     createChildCategoryDto: CreateChildCategoryDto,
   ): Promise<ChildCategoryDocument> {
     try {
-      // Verify category exists
-      const category = await this.categoryModel
-        .findById(createChildCategoryDto.categoryId)
-        .exec();
-      if (!category) {
-        throw new NotFoundException(
-          `Category with ID ${createChildCategoryDto.categoryId} not found`,
-        );
-      }
-
-      // Check if child category with this slug already exists for this category
+      // Check if child category with this slug already exists (slug must be unique globally)
       const existingChildCategory = await this.childCategoryModel
         .findOne({
           slug: createChildCategoryDto.slug,
-          categoryId: createChildCategoryDto.categoryId,
         })
         .exec();
 
       if (existingChildCategory) {
         throw new ConflictException(
-          `Child category with slug ${createChildCategoryDto.slug} already exists for this category`,
+          `Child category with slug ${createChildCategoryDto.slug} already exists`,
         );
+      }
+
+      // Verify brands exist if provided
+      if (
+        createChildCategoryDto.brandIds &&
+        createChildCategoryDto.brandIds.length > 0
+      ) {
+        const brands = await this.brandModel
+          .find({ _id: { $in: createChildCategoryDto.brandIds } })
+          .exec();
+
+        if (brands.length !== createChildCategoryDto.brandIds.length) {
+          const foundIds = brands.map((b) => String(b._id));
+          const missingIds = createChildCategoryDto.brandIds.filter(
+            (id) => !foundIds.includes(id),
+          );
+          throw new NotFoundException(
+            `Brand(s) with ID(s) ${missingIds.join(', ')} not found`,
+          );
+        }
+      }
+
+      // Verify category exists if provided
+      if (createChildCategoryDto.categoryId) {
+        const category = await this.categoryModel
+          .findById(createChildCategoryDto.categoryId)
+          .exec();
+        if (!category) {
+          throw new NotFoundException(
+            `Category with ID ${createChildCategoryDto.categoryId} not found`,
+          );
+        }
       }
 
       return await this.childCategoryModel.create(createChildCategoryDto);
@@ -410,7 +487,43 @@ export class CategoriesService {
     updateChildCategoryDto: UpdateChildCategoryDto,
   ): Promise<ChildCategoryDocument> {
     try {
-      // If categoryId is being updated, verify category exists
+      // If slug is being updated, check for conflicts (slug must be unique globally)
+      if (updateChildCategoryDto.slug) {
+        const existingChildCategory = await this.childCategoryModel
+          .findOne({
+            slug: updateChildCategoryDto.slug,
+            _id: { $ne: id },
+          })
+          .exec();
+
+        if (existingChildCategory) {
+          throw new ConflictException(
+            `Child category with slug ${updateChildCategoryDto.slug} already exists`,
+          );
+        }
+      }
+
+      // Verify brands exist if being updated
+      if (
+        updateChildCategoryDto.brandIds &&
+        updateChildCategoryDto.brandIds.length > 0
+      ) {
+        const brands = await this.brandModel
+          .find({ _id: { $in: updateChildCategoryDto.brandIds } })
+          .exec();
+
+        if (brands.length !== updateChildCategoryDto.brandIds.length) {
+          const foundIds = brands.map((b) => String(b._id));
+          const missingIds = updateChildCategoryDto.brandIds.filter(
+            (id) => !foundIds.includes(id),
+          );
+          throw new NotFoundException(
+            `Brand(s) with ID(s) ${missingIds.join(', ')} not found`,
+          );
+        }
+      }
+
+      // Verify category exists if being updated
       if (updateChildCategoryDto.categoryId) {
         const category = await this.categoryModel
           .findById(updateChildCategoryDto.categoryId)
@@ -422,43 +535,10 @@ export class CategoriesService {
         }
       }
 
-      // If slug is being updated, check for conflicts
-      if (updateChildCategoryDto.slug) {
-        const categoryId = updateChildCategoryDto.categoryId || undefined;
-        const query: {
-          slug: string;
-          _id: { $ne: string };
-          categoryId?: string | ObjectId;
-        } = {
-          slug: updateChildCategoryDto.slug,
-          _id: { $ne: id },
-        };
-        if (categoryId) {
-          query.categoryId = categoryId;
-        } else {
-          // If categoryId not in update, get current child category's categoryId
-          const currentChildCategory = await this.childCategoryModel
-            .findById(id)
-            .exec();
-          if (currentChildCategory) {
-            query.categoryId = currentChildCategory.categoryId;
-          }
-        }
-
-        const existingChildCategory = await this.childCategoryModel
-          .findOne(query)
-          .exec();
-
-        if (existingChildCategory) {
-          throw new ConflictException(
-            `Child category with slug ${updateChildCategoryDto.slug} already exists for this category`,
-          );
-        }
-      }
-
       const childCategory = await this.childCategoryModel
         .findByIdAndUpdate(id, updateChildCategoryDto, { new: true })
-        .populate('categoryId', 'name slug brandId')
+        .populate('brandIds', 'name slug')
+        .populate('categoryId', 'name slug')
         .exec();
 
       if (!childCategory) {

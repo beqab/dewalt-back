@@ -213,6 +213,11 @@ export class CategoriesController {
   @Get('child-categories')
   @ApiOperation({ summary: 'Get all child categories (public endpoint)' })
   @ApiQuery({
+    name: 'brandId',
+    required: false,
+    description: 'Filter by brand ID',
+  })
+  @ApiQuery({
     name: 'categoryId',
     required: false,
     description: 'Filter by category ID',
@@ -222,9 +227,15 @@ export class CategoriesController {
     description: 'Child categories retrieved successfully',
     type: [ChildCategoryResponseDto],
   })
-  findAllChildCategories(@Query('categoryId') categoryId?: string) {
-    if (categoryId) {
-      return this.categoriesService.findChildCategoriesByCategory(categoryId);
+  findAllChildCategories(
+    @Query('brandId') brandId?: string,
+    @Query('categoryId') categoryId?: string,
+  ) {
+    if (brandId && categoryId) {
+      return this.categoriesService.findChildCategoriesByBrandAndCategory(
+        brandId,
+        categoryId,
+      );
     }
     return this.categoriesService.findAllChildCategories();
   }

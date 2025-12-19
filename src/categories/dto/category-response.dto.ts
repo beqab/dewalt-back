@@ -52,10 +52,11 @@ export class CategoryResponseDto {
   slug: string;
 
   @ApiProperty({
-    description: 'Brand ID',
-    example: '507f1f77bcf86cd799439011',
+    description: 'Brand IDs (array of brand references)',
+    example: ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'],
+    type: [String],
   })
-  brandId: string;
+  brandIds: string[] | BrandResponseDto[];
 
   @ApiProperty({
     description: 'Creation date',
@@ -91,10 +92,19 @@ export class ChildCategoryResponseDto {
   slug: string;
 
   @ApiProperty({
-    description: 'Parent Category ID',
-    example: '507f1f77bcf86cd799439011',
+    description: 'Brand IDs (array of brand references)',
+    example: ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'],
+    type: [String],
+    required: false,
   })
-  categoryId: string;
+  brandIds?: string[] | BrandResponseDto[];
+
+  @ApiProperty({
+    description: 'Parent Category ID (optional)',
+    example: '507f1f77bcf86cd799439011',
+    required: false,
+  })
+  categoryId?: string | CategoryResponseDto;
 
   @ApiProperty({
     description: 'Creation date',

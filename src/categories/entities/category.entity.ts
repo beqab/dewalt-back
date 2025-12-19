@@ -14,15 +14,14 @@ export class Category {
   })
   name: LocalizedText;
 
-  @Prop({ type: String, required: true, unique: false })
-  slug: string; // URL-friendly identifier (can be duplicate across brands)
+  @Prop({ type: String, required: true, unique: true })
+  slug: string; // URL-friendly identifier (unique globally)
 
   @Prop({
-    type: MongooseSchema.Types.ObjectId,
-    ref: 'Brand',
-    required: true,
+    type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Brand' }],
+    default: [],
   })
-  brandId: MongooseSchema.Types.ObjectId;
+  brandIds: MongooseSchema.Types.ObjectId[]; // Many-to-many relationship with brands
 
   @Prop({ default: Date.now })
   createdAt: Date;
