@@ -11,6 +11,7 @@ export interface Banner {
   title: LocalizedText;
   description: LocalizedText;
   order: number;
+  buttonLink?: string;
 }
 
 @Schema({ timestamps: true })
@@ -28,6 +29,7 @@ export class BannerSlider {
           en: { type: String, required: true },
         },
         order: { type: Number, required: true },
+        buttonLink: { type: String, required: false },
       },
     ],
     default: [],

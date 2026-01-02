@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsString, Min } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class LocalizedTextDto {
   @ApiProperty({ example: 'Some Georgian text' })
@@ -39,4 +45,12 @@ export class CreateBannerDto {
   @IsNotEmpty()
   description: LocalizedTextDto;
 
+  @ApiProperty({
+    description: 'Button link URL',
+    example: 'https://example.com/products',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  buttonLink?: string;
 }

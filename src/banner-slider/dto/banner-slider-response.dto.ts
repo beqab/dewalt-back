@@ -28,6 +28,13 @@ export class BannerDto {
     example: 1,
   })
   order: number;
+
+  @ApiProperty({
+    description: 'Button link URL',
+    example: 'https://example.com/products',
+    required: false,
+  })
+  buttonLink?: string;
 }
 
 export class BannerSliderResponseDto {

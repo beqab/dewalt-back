@@ -1,6 +1,6 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { CreateBannerDto, LocalizedTextDto } from './create-banner.dto';
-import { IsOptional } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 
 export class UpdateBannerDto extends PartialType(CreateBannerDto) {
   @ApiProperty({
@@ -30,4 +30,12 @@ export class UpdateBannerDto extends PartialType(CreateBannerDto) {
   @IsOptional()
   description?: LocalizedTextDto;
 
+  @ApiProperty({
+    description: 'Button link URL',
+    example: 'https://example.com/products',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  buttonLink?: string;
 }
