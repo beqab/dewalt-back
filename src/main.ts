@@ -34,6 +34,7 @@ async function bootstrap() {
     .setDescription('Dewalt Backend API Documentation')
     .setVersion('1.0')
     .addTag('admin', 'Admin management endpoints')
+    .addTag('auth', 'User authentication endpoints')
     .addTag('user', 'User management endpoints')
     .addTag('banner-slider', 'Banner slider management endpoints')
     .addTag('news', 'News articles management endpoints')

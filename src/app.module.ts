@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UserModule } from './user/user.module';
+import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { BannerSliderModule } from './banner-slider/banner-slider.module';
 import { NewsModule } from './news/news.module';
@@ -64,6 +65,7 @@ import { JwtModule } from '@nestjs/jwt';
       resolvers: [new HeaderResolver(['x-custom-lang'])],
     }),
     UserModule,
+    AuthModule,
     AdminModule,
     BannerSliderModule,
     NewsModule,
