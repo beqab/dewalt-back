@@ -195,12 +195,16 @@ export class CategoriesController {
   @UseGuards(AdminAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Delete a category by ID (admin only)' })
+  @ApiOperation({
+    summary: 'Delete a category by ID (admin only)',
+    description:
+      'Deletes a category and removes categoryId reference from all child categories',
+  })
   @ApiParam({ name: 'id', description: 'Category ID' })
-  @ApiResponse({ status: 204, description: 'Category deleted successfully' })
   @ApiResponse({
-    status: 400,
-    description: 'Cannot delete category with child categories',
+    status: 204,
+    description:
+      'Category deleted successfully. All child categories had their categoryId removed.',
   })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Category not found' })

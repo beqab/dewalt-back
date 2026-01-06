@@ -136,6 +136,11 @@ export class CategoriesService {
         .updateMany({ brandIds: id }, { $pull: { brandIds: id } })
         .exec();
 
+      // Remove brand reference from all child categories that have this brand
+      await this.childCategoryModel
+        .updateMany({ brandIds: id }, { $pull: { brandIds: id } })
+        .exec();
+
       const result = await this.brandModel.findByIdAndDelete(id).exec();
       if (!result) {
         throw new NotFoundException(`Brand with ID ${id} not found`);
@@ -340,16 +345,10 @@ export class CategoriesService {
 
   async removeCategory(id: string): Promise<void> {
     try {
-      // Check if category has child categories
-      const childCategoriesCount = await this.childCategoryModel
-        .countDocuments({ categoryId: id })
+      // Remove categoryId reference from all child categories that have this categoryId
+      await this.childCategoryModel
+        .updateMany({ categoryId: id }, { $unset: { categoryId: '' } })
         .exec();
-
-      if (childCategoriesCount > 0) {
-        throw new BadRequestException(
-          'Cannot delete category with existing child categories',
-        );
-      }
 
       const result = await this.categoryModel.findByIdAndDelete(id).exec();
       if (!result) {
