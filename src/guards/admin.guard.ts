@@ -40,6 +40,7 @@ export class AdminAuthGuard implements CanActivate {
 
     try {
       const secret = this.configService.get<string>('ADMIN_ACCESS_SECRET');
+      console.log(secret, 'secret from admin.guard.ts');
       const payload = this.jwtService.verify<JwtPayload>(token, {
         secret,
       });

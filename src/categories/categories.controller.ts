@@ -317,4 +317,26 @@ export class CategoriesController {
   removeChildCategory(@Param('id') id: string) {
     return this.categoriesService.removeChildCategory(id);
   }
+
+  // ==================== MENU DATA ENDPOINT ====================
+
+  @Get('menu')
+  @ApiOperation({
+    summary:
+      'Get menu data (brands, categories, child categories) for header navigation',
+  })
+  @ApiQuery({
+    name: 'lang',
+    required: false,
+    description: 'Language for translated names (en or ka)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Menu data retrieved successfully',
+  })
+  getMenuData(@Query('lang') lang?: 'en' | 'ka') {
+    const normalizedLang: 'en' | 'ka' =
+      lang === 'ka' || lang === 'en' ? lang : 'en';
+    return this.categoriesService.getMenuData(normalizedLang);
+  }
 }

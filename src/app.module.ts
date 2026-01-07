@@ -24,10 +24,17 @@ import { JwtModule } from '@nestjs/jwt';
     // Make JwtModule global so all modules can use AdminAuthGuard
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('ADMIN_ACCESS_SECRET'),
-        signOptions: { expiresIn: '30m' },
-      }),
+      useFactory: (configService: ConfigService) => {
+        console.log(
+          configService.get<string>('ADMIN_ACCESS_SECRET'),
+          'ADMIN_ACCESS_SECRET from app.module.ts',
+        );
+
+        return {
+          secret: configService.get<string>('ADMIN_ACCESS_SECRET'),
+          signOptions: { expiresIn: '30m' },
+        };
+      },
       inject: [ConfigService],
       global: true, // Make it available to all modules
     }),

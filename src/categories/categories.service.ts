@@ -22,6 +22,7 @@ import {
   UpdateCategoryDto,
   UpdateChildCategoryDto,
 } from './dto';
+import type { LocalizedText } from './types/localized-text.interface';
 
 @Injectable()
 export class CategoriesService {
@@ -570,4 +571,106 @@ export class CategoriesService {
       throw new BadRequestException('Failed to delete child category');
     }
   }
+
+  // ==================== MENU DATA (BRAND + CATEGORY + CHILD CATEGORY) ====================
+
+  /**
+   * Returns menu data for header navigation.
+   * Combines brands, categories and child categories into a single JSON response
+   * and applies localization on the backend based on the requested language.
+   */
+  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
+  async getMenuData(lang: 'en' | 'ka' = 'en') {
+    try {
+      const [brands, categories, childCategories]: [any[], any[], any[]] =
+        await Promise.all([
+          this.brandModel.find().lean().exec(),
+          this.categoryModel.find().lean().exec(),
+          this.childCategoryModel.find().lean().exec(),
+        ]);
+
+      const translateName = (
+        name: LocalizedText | null | undefined,
+      ): string => {
+        if (!name) return '';
+        if (lang === 'ka' && name.ka) return name.ka;
+        if (lang === 'en' && name.en) return name.en;
+        return name.en || name.ka || '';
+      };
+
+      type MenuSubCategory = {
+        id: string;
+        name: string;
+        slug: string;
+      };
+
+      type MenuCategory = {
+        id: string;
+        name: string;
+        subCategories: MenuSubCategory[];
+      };
+
+      type MenuBrand = {
+        id: string;
+        name: string;
+        categories: MenuCategory[];
+      };
+
+      const menuBrands: MenuBrand[] = brands.map((brand) => {
+        const brandId = String(brand._id);
+
+        const brandCategories = categories.filter((category) => {
+          const categoryBrandIds = (category.brandIds || []).map((id) =>
+            String(id),
+          );
+          return categoryBrandIds.includes(brandId);
+        });
+
+        const menuCategories: MenuCategory[] = brandCategories.map(
+          (category) => {
+            const categoryId = String(category._id);
+
+            const relatedChildCategories = childCategories.filter((child) => {
+              const childBrandIds = (child.brandIds || []).map((id) =>
+                String(id),
+              );
+              const childCategoryId = child.categoryId
+                ? String(child.categoryId)
+                : null;
+
+              return (
+                childCategoryId === categoryId &&
+                childBrandIds.includes(brandId)
+              );
+            });
+
+            const subCategories: MenuSubCategory[] = relatedChildCategories.map(
+              (child) => ({
+                id: String(child._id),
+                name: translateName(child.name),
+                slug: child.slug,
+              }),
+            );
+
+            return {
+              id: categoryId,
+              name: translateName(category.name),
+              subCategories,
+            };
+          },
+        );
+
+        return {
+          id: brandId,
+          name: translateName(brand.name),
+          categories: menuCategories,
+        };
+      });
+
+      return menuBrands;
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch menu data');
+    }
+  }
+  /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 }

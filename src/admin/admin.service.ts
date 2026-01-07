@@ -189,9 +189,20 @@ export class AdminService {
         },
       );
 
+      console.log(
+        'blabla from admin.service.ts',
+        this.configService.get<string>('ADMIN_ACCESS_SECRET'),
+      );
+
       console.log(decoded, 'decoded');
 
       const admin = await this.adminModel.findById(decoded.adminId);
+
+      console.log(
+        admin,
+        'admin from admin.service.ts',
+        admin?.refreshToken.indexOf(refreshToken),
+      );
 
       if (!admin || admin.refreshToken.indexOf(refreshToken) === -1) {
         throw new BadRequestException('Invalid refresh token');
