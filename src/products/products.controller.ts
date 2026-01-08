@@ -1,0 +1,212 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Delete,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Query,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
+import { Types } from 'mongoose';
+import { ProductsService } from './products.service';
+import { CreateProductDto, ProductResponseDto } from './dto';
+import { AdminAuthGuard } from 'src/guards/admin.guard';
+import { ProductDocument } from './entities';
+
+@ApiTags('products')
+@Controller('products')
+export class ProductsController {
+  constructor(private readonly productsService: ProductsService) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Get all products (public endpoint)' })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10)',
+  })
+  @ApiQuery({
+    name: 'brandId',
+    required: false,
+    type: String,
+    description: 'Filter by brand ID',
+  })
+  @ApiQuery({
+    name: 'categoryId',
+    required: false,
+    type: String,
+    description: 'Filter by category ID',
+  })
+  @ApiQuery({
+    name: 'childCategoryId',
+    required: false,
+    type: String,
+    description: 'Filter by child category ID',
+  })
+  @ApiQuery({
+    name: 'inStock',
+    required: false,
+    type: Boolean,
+    description: 'Filter by stock availability',
+  })
+  @ApiQuery({
+    name: 'minPrice',
+    required: false,
+    type: Number,
+    description: 'Minimum price filter',
+  })
+  @ApiQuery({
+    name: 'maxPrice',
+    required: false,
+    type: Number,
+    description: 'Maximum price filter',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search in name and code',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Products retrieved successfully',
+    type: [ProductResponseDto],
+  })
+  findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('brandId') brandId?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('childCategoryId') childCategoryId?: string,
+    @Query('inStock') inStock?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNum = page ? parseInt(page, 10) : 1;
+    const limitNum = limit ? parseInt(limit, 10) : 10;
+    const filters: {
+      brandId?: string;
+      categoryId?: string;
+      childCategoryId?: string;
+      inStock?: boolean;
+      minPrice?: number;
+      maxPrice?: number;
+      search?: string;
+    } = {};
+
+    if (brandId) filters.brandId = brandId;
+    if (categoryId) filters.categoryId = categoryId;
+    if (childCategoryId) filters.childCategoryId = childCategoryId;
+    if (inStock !== undefined) filters.inStock = inStock === 'true';
+    if (minPrice) filters.minPrice = parseFloat(minPrice);
+    if (maxPrice) filters.maxPrice = parseFloat(maxPrice);
+    if (search) filters.search = search;
+
+    return this.productsService.findAll(pageNum, limitNum, filters);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get product by ID (public endpoint)' })
+  @ApiParam({ name: 'id', description: 'Product ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Product retrieved successfully',
+    type: ProductResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  findOne(@Param('id') id: string) {
+    return this.productsService.findById(id);
+  }
+
+  @Get('slug/:slug')
+  @ApiOperation({ summary: 'Get product by slug (public endpoint)' })
+  @ApiParam({ name: 'slug', description: 'Product slug' })
+  @ApiResponse({
+    status: 200,
+    description: 'Product retrieved successfully',
+    type: ProductResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  findBySlug(@Param('slug') slug: string) {
+    return this.productsService.findBySlug(slug);
+  }
+
+  @Post()
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new product (admin only)' })
+  @ApiResponse({
+    status: 201,
+    description: 'Product created successfully',
+    type: ProductResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: 409,
+    description: 'Product code or slug already exists',
+  })
+  create(@Body() createProductDto: CreateProductDto) {
+    return this.productsService.create(createProductDto);
+  }
+
+  @Post(':id')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update a product by ID (admin only)',
+    description:
+      'If ID is provided in the route, this endpoint updates the product. Uses POST method instead of PATCH.',
+  })
+  @ApiParam({ name: 'id', description: 'Product ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Product updated successfully',
+    type: ProductResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  @ApiResponse({
+    status: 409,
+    description: 'Product code or slug already exists',
+  })
+  update(@Param('id') id: string, @Body() updateProductDto: CreateProductDto) {
+    return this.productsService.update(id, updateProductDto);
+  }
+
+  @Delete(':id')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a product by ID (admin only)' })
+  @ApiParam({ name: 'id', description: 'Product ID' })
+  @ApiResponse({
+    status: 204,
+    description: 'Product deleted successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  remove(@Param('id') id: string) {
+    return this.productsService.remove(id);
+  }
+}

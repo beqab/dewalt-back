@@ -8,6 +8,7 @@ import { BannerSliderModule } from './banner-slider/banner-slider.module';
 import { NewsModule } from './news/news.module';
 import { AdsModule } from './ads/ads.module';
 import { CategoriesModule } from './categories/categories.module';
+import { ProductsModule } from './products/products.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { I18nModule, HeaderResolver } from 'nestjs-i18n';
 import { join } from 'path';
@@ -78,6 +79,7 @@ import { JwtModule } from '@nestjs/jwt';
     NewsModule,
     AdsModule,
     CategoriesModule,
+    ProductsModule,
     TranslationModule,
   ],
   controllers: [AppController],
