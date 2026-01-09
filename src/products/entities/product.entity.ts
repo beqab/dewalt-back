@@ -47,6 +47,9 @@ export class Product {
   @Prop({ type: Boolean, default: true })
   inStock: boolean;
 
+  @Prop({ type: Number, default: 0, min: 0 })
+  quantity: number; // Stock quantity
+
   @Prop({ type: Number, default: 0, min: 0, max: 5 })
   rating: number; // Average rating (0-5)
 

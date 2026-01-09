@@ -14,13 +14,13 @@ export class ProductSpec {
   label: LocalizedText;
 
   @Prop({
-    type: MongooseSchema.Types.Mixed,
+    type: {
+      ka: { type: String, required: true },
+      en: { type: String, required: true },
+    },
     required: true,
   })
-  value: string | number;
-
-  @Prop({ type: String, required: false })
-  unit?: string;
+  value: LocalizedText;
 }
 
 export const ProductSpecSchema = new MongooseSchema(
@@ -29,8 +29,10 @@ export const ProductSpecSchema = new MongooseSchema(
       ka: { type: String, required: true },
       en: { type: String, required: true },
     },
-    value: { type: MongooseSchema.Types.Mixed, required: true },
-    unit: { type: String, required: false },
+    value: {
+      ka: { type: String, required: true },
+      en: { type: String, required: true },
+    },
   },
   { _id: false },
 );
