@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model } from 'mongoose';
+import { FilterQuery, Model, Types } from 'mongoose';
 import { Product, ProductDocument } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { Brand } from '../categories/entities/brand.entity';
@@ -46,15 +46,15 @@ export class ProductsService {
       const query: FilterQuery<ProductDocument> = {};
 
       if (filters?.brandId) {
-        query.brandId = filters.brandId;
+        query.brandId = new Types.ObjectId(filters.brandId);
       }
 
       if (filters?.categoryId) {
-        query.categoryId = filters.categoryId;
+        query.categoryId = new Types.ObjectId(filters.categoryId);
       }
 
       if (filters?.childCategoryId) {
-        query.childCategoryId = filters.childCategoryId;
+        query.childCategoryId = new Types.ObjectId(filters.childCategoryId);
       }
 
       if (filters?.inStock !== undefined) {

@@ -111,6 +111,18 @@ export class CreateProductDto {
   inStock?: boolean;
 
   @ApiProperty({
+    description: 'Stock quantity',
+    example: 50,
+    minimum: 0,
+    default: 0,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  quantity?: number;
+
+  @ApiProperty({
     description: 'Average rating (0-5)',
     example: 4.5,
     minimum: 0,
@@ -174,8 +186,7 @@ export class CreateProductDto {
     example: [
       {
         label: { ka: 'სიმძლავრე', en: 'Power' },
-        value: 720,
-        unit: 'W',
+        value: { ka: '720', en: '720' },
       },
     ],
     type: [ProductSpecDto],

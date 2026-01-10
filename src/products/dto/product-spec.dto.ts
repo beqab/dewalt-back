@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, IsNumber, IsOptional } from 'class-validator';
+import { IsNotEmpty, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { LocalizedTextDto } from '../../categories/dto/localized-text.dto';
 
 export class ProductSpecDto {
@@ -9,21 +10,17 @@ export class ProductSpecDto {
     type: LocalizedTextDto,
   })
   @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
   label: LocalizedTextDto;
 
   @ApiProperty({
-    description: 'Specification value (string or number)',
-    example: 720,
+    description: 'Specification value (localized)',
+    example: { ka: '720', en: '720' },
+    type: LocalizedTextDto,
   })
   @IsNotEmpty()
-  value: string | number;
-
-  @ApiProperty({
-    description: 'Specification unit (optional)',
-    example: 'W',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  unit?: string;
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
+  value: LocalizedTextDto;
 }
