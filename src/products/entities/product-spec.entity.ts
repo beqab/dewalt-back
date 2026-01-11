@@ -1,5 +1,5 @@
 import { Prop, Schema } from '@nestjs/mongoose';
-import { Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema } from 'mongoose';
 import type { LocalizedText } from '../../categories/types/localized-text.interface';
 
 @Schema({ _id: false })
@@ -36,3 +36,5 @@ export const ProductSpecSchema = new MongooseSchema(
   },
   { _id: false },
 );
+
+export type ProductSpecDocument = ProductSpec & Document;

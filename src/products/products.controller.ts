@@ -100,9 +100,10 @@ export class ProductsController {
     @Query('minPrice') minPrice?: string,
     @Query('maxPrice') maxPrice?: string,
     @Query('search') search?: string,
+    @Query('language') language?: 'ka' | 'en',
   ) {
-    const pageNum = page ? parseInt(page, 10) : 1;
-    const limitNum = limit ? parseInt(limit, 10) : 10;
+    const pageNum = page ? parseInt(String(page), 10) : 1;
+    const limitNum = limit ? parseInt(String(limit), 10) : 10;
     const filters: {
       brandId?: string;
       categoryId?: string;
@@ -111,17 +112,22 @@ export class ProductsController {
       minPrice?: number;
       maxPrice?: number;
       search?: string;
+      language?: string;
     } = {};
 
-    if (brandId) filters.brandId = brandId;
-    if (categoryId) filters.categoryId = categoryId;
-    if (childCategoryId) filters.childCategoryId = childCategoryId;
-    if (inStock !== undefined) filters.inStock = inStock === 'true';
-    if (minPrice) filters.minPrice = parseFloat(minPrice);
-    if (maxPrice) filters.maxPrice = parseFloat(maxPrice);
-    if (search) filters.search = search;
+    if (brandId) filters.brandId = String(brandId);
+    if (categoryId) filters.categoryId = String(categoryId);
+    if (childCategoryId) filters.childCategoryId = String(childCategoryId);
+    if (inStock !== undefined) {
+      const inStockValue = String(inStock);
+      filters.inStock = inStockValue === 'true' || inStockValue === '1';
+    }
+    if (minPrice) filters.minPrice = parseFloat(String(minPrice));
+    if (maxPrice) filters.maxPrice = parseFloat(String(maxPrice));
+    if (search) filters.search = String(search);
+    if (language) filters.language = String(language);
 
-    return this.productsService.findAll(pageNum, limitNum, filters);
+    return this.productsService.findAll(pageNum, limitNum, filters, language);
   }
 
   @Get(':id')
@@ -133,8 +139,8 @@ export class ProductsController {
     type: ProductResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Product not found' })
-  findOne(@Param('id') id: string) {
-    return this.productsService.findById(id);
+  findOne(@Param('id') id: string, @Query('language') language?: 'ka' | 'en') {
+    return this.productsService.findById(id, language);
   }
 
   @Get('slug/:slug')
@@ -148,6 +154,40 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'Product not found' })
   findBySlug(@Param('slug') slug: string) {
     return this.productsService.findBySlug(slug);
+  }
+
+  @Get(':id/similar')
+  @ApiOperation({ summary: 'Get similar products (public endpoint)' })
+  @ApiParam({ name: 'id', description: 'Product ID' })
+  @ApiQuery({
+    name: 'minCount',
+    required: false,
+    type: Number,
+    description: 'Minimum number of products to return (default: 5)',
+  })
+  @ApiQuery({
+    name: 'maxCount',
+    required: false,
+    type: Number,
+    description: 'Maximum number of products to return (default: 15)',
+  })
+  @ApiQuery({
+    name: 'language',
+    required: false,
+    enum: ['ka', 'en'],
+    description: 'Language for localized fields',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Similar products retrieved successfully',
+    type: [ProductResponseDto],
+  })
+  findSimilar(
+    @Param('id') id: string,
+
+    @Query('language') language?: 'ka' | 'en',
+  ) {
+    return this.productsService.findSimilarProducts(id, language);
   }
 
   @Post()

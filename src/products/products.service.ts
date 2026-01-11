@@ -5,12 +5,29 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model, Types } from 'mongoose';
+import { FilterQuery, FlattenMaps, Model, Types } from 'mongoose';
 import { Product, ProductDocument } from './entities/product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { Brand } from '../categories/entities/brand.entity';
-import { Category } from '../categories/entities/category.entity';
+import {
+  Category,
+  CategoryDocument,
+} from '../categories/entities/category.entity';
 import { ChildCategory } from '../categories/entities/child-category.entity';
+import { ProductSpec, ProductSpecDocument } from './entities';
+import { LocalizedText } from 'src/categories/entities';
+
+interface CategoryType extends Record<string, unknown> {
+  _id: string;
+  name: LocalizedText;
+  slug: string;
+}
+
+type ProductType = ProductDocument & {
+  brandId: CategoryType;
+  categoryId: CategoryType;
+  childCategoryId: CategoryType;
+};
 
 @Injectable()
 export class ProductsService {
@@ -34,8 +51,9 @@ export class ProductsService {
       maxPrice?: number;
       search?: string;
     },
+    language?: 'ka' | 'en',
   ): Promise<{
-    data: ProductDocument[];
+    data: (ProductDocument | Record<string, unknown>)[];
     total: number;
     page: number;
     limit: number;
@@ -66,10 +84,15 @@ export class ProductsService {
       }
 
       if (filters?.search) {
+        // Escape special regex characters in search string
+        const escapedSearch = filters.search.replace(
+          /[.*+?^${}()|[\]\\]/g,
+          '\\$&',
+        );
         query.$or = [
-          { 'name.ka': { $regex: filters.search, $options: 'i' } },
-          { 'name.en': { $regex: filters.search, $options: 'i' } },
-          { code: { $regex: filters.search, $options: 'i' } },
+          { 'name.ka': { $regex: escapedSearch, $options: 'i' } },
+          { 'name.en': { $regex: escapedSearch, $options: 'i' } },
+          { code: { $regex: escapedSearch, $options: 'i' } },
         ];
       }
 
@@ -82,35 +105,55 @@ export class ProductsService {
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)
+          .lean()
           .exec(),
         this.productModel.countDocuments(query).exec(),
       ]);
 
+      // Transform data based on language if provided
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const transformedData = language
+        ? data.map((product: any) =>
+            this.transformProductByLanguage(product, language),
+          )
+        : data;
+
       return {
-        data,
+        data: transformedData as (ProductDocument | Record<string, unknown>)[],
         total,
         page,
         limit,
         totalPages: Math.ceil(total / limit),
       };
     } catch (error) {
+      console.log(error, 'error');
       throw new BadRequestException('Failed to fetch products');
     }
   }
 
-  async findById(id: string): Promise<ProductDocument> {
+  async findById(
+    id: string,
+    language?: 'ka' | 'en',
+  ): Promise<ProductDocument | Record<string, unknown>> {
+    console.log(id, 'id', language, 'language');
     try {
       const product = await this.productModel
         .findById(id)
         .populate('brandId', 'name slug')
         .populate('categoryId', 'name slug')
         .populate('childCategoryId', 'name slug')
+        .lean()
         .exec();
 
       if (!product) {
         throw new NotFoundException(`Product with ID ${id} not found`);
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (language) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return this.transformProductByLanguage(product as any, language);
+      }
       return product;
     } catch (error) {
       if (error instanceof NotFoundException) {
@@ -131,6 +174,246 @@ export class ProductsService {
     } catch (error) {
       throw new BadRequestException('Failed to fetch product by slug');
     }
+  }
+
+  /**
+   * Extract ID string from populated field (can be ObjectId, populated object, or string)
+   */
+  private extractIdFromPopulatedField(field: unknown): string | null {
+    if (!field) {
+      return null;
+    }
+
+    if (typeof field === 'string') {
+      return field;
+    }
+
+    if (typeof field === 'object' && field !== null) {
+      // Check if it's a populated object with _id
+      if ('_id' in field) {
+        const idValue = (field as { _id: unknown })._id;
+        if (!idValue) {
+          return null;
+        }
+        // Handle ObjectId instances properly
+        if (
+          typeof idValue === 'object' &&
+          idValue !== null &&
+          'toString' in idValue &&
+          typeof (idValue as { toString: unknown }).toString === 'function'
+        ) {
+          return (idValue as { toString: () => string }).toString();
+        }
+        return String((idValue as { _id: unknown })._id);
+      }
+
+      // Check if it's an ObjectId instance with toString method
+      if (
+        'toString' in field &&
+        typeof (field as { toString: unknown }).toString === 'function'
+      ) {
+        return (field as { toString: () => string }).toString();
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Fetch products with common populate options
+   */
+  private async fetchProductsWithPopulate(
+    query: FilterQuery<ProductDocument>,
+    limit: number,
+  ): Promise<FlattenMaps<ProductDocument>[]> {
+    return this.productModel
+      .find(query)
+      .populate('brandId', 'name slug')
+      .populate('categoryId', 'name slug')
+      .populate('childCategoryId', 'name slug')
+      .limit(limit)
+      .lean()
+      .exec();
+  }
+
+  /**
+   * Extract product IDs from lean product documents
+   */
+  private extractProductIds(
+    products: FlattenMaps<ProductDocument>[],
+  ): Types.ObjectId[] {
+    return products
+      .map((product) => {
+        const id = product._id;
+        if (!id) {
+          return null;
+        }
+        // Handle ObjectId instances properly
+        if (
+          typeof id === 'object' &&
+          id !== null &&
+          'toString' in id &&
+          typeof (id as { toString: unknown }).toString === 'function'
+        ) {
+          return new Types.ObjectId(
+            (id as { toString: () => string }).toString(),
+          );
+        }
+        return new Types.ObjectId(String((id as { _id: unknown })._id));
+      })
+      .filter((id): id is Types.ObjectId => id !== null);
+  }
+
+  async findSimilarProducts(
+    productId: string,
+    language?: 'ka' | 'en',
+    minCount: number = 5,
+    maxCount: number = 15,
+  ): Promise<(ProductDocument | Record<string, unknown>)[]> {
+    try {
+      // Get the current product
+      const currentProduct = await this.productModel
+        .findById(productId)
+        .populate('brandId', 'name slug')
+        .populate('categoryId', 'name slug')
+        .populate('childCategoryId', 'name slug')
+        .lean()
+        .exec();
+
+      if (!currentProduct) {
+        return [];
+      }
+
+      const results: FlattenMaps<ProductDocument>[] = [];
+      const excludeIds: Types.ObjectId[] = [new Types.ObjectId(productId)];
+
+      // Priority 1: Same childCategoryId
+      if (currentProduct.childCategoryId) {
+        const childCategoryId = this.extractIdFromPopulatedField(
+          currentProduct.childCategoryId,
+        );
+
+        if (childCategoryId) {
+          const childCategoryProducts = await this.fetchProductsWithPopulate(
+            {
+              _id: { $nin: excludeIds },
+              childCategoryId: new Types.ObjectId(childCategoryId),
+            },
+            maxCount,
+          );
+
+          results.push(...childCategoryProducts);
+          excludeIds.push(...this.extractProductIds(childCategoryProducts));
+
+          if (results.length >= maxCount) {
+            return this.transformProductsByLanguage(
+              results.slice(0, maxCount),
+              language,
+            );
+          }
+        }
+      }
+
+      // Priority 2: Same categoryId
+      if (currentProduct.categoryId) {
+        const categoryId = this.extractIdFromPopulatedField(
+          currentProduct.categoryId,
+        );
+
+        if (categoryId) {
+          const categoryProducts = await this.fetchProductsWithPopulate(
+            {
+              _id: { $nin: excludeIds },
+              categoryId: new Types.ObjectId(categoryId),
+            },
+            maxCount - results.length,
+          );
+
+          results.push(...categoryProducts);
+          excludeIds.push(...this.extractProductIds(categoryProducts));
+
+          if (results.length >= maxCount) {
+            return this.transformProductsByLanguage(
+              results.slice(0, maxCount),
+              language,
+            );
+          }
+        }
+      }
+
+      // Priority 3: Similar name (extract keywords from product name)
+      const productName =
+        typeof currentProduct.name === 'object'
+          ? currentProduct.name.en || currentProduct.name.ka
+          : currentProduct.name;
+
+      if (productName && results.length < minCount) {
+        // Extract first word or key terms from product name
+        const nameWords = productName
+          .split(/\s+/)
+          .filter((word) => word.length > 3)
+          .slice(0, 2);
+
+        if (nameWords.length > 0) {
+          const nameQuery: FilterQuery<ProductDocument> = {
+            _id: { $nin: excludeIds },
+            $or: nameWords.map((word) => ({
+              $or: [
+                { 'name.ka': { $regex: word, $options: 'i' } },
+                { 'name.en': { $regex: word, $options: 'i' } },
+              ],
+            })),
+          };
+
+          const similarNameProducts = await this.fetchProductsWithPopulate(
+            nameQuery,
+            maxCount - results.length,
+          );
+
+          results.push(...similarNameProducts);
+        }
+      }
+
+      // If still not enough, get any products from same brand
+      if (results.length < minCount && currentProduct.brandId) {
+        const brandId = this.extractIdFromPopulatedField(
+          currentProduct.brandId,
+        );
+
+        if (brandId) {
+          const brandProducts = await this.fetchProductsWithPopulate(
+            {
+              _id: { $nin: excludeIds },
+              brandId: new Types.ObjectId(brandId),
+            },
+            maxCount - results.length,
+          );
+
+          results.push(...brandProducts);
+        }
+      }
+
+      // Return at least minCount, up to maxCount
+      const finalResults = results.slice(0, maxCount);
+      return this.transformProductsByLanguage(finalResults, language);
+    } catch (error) {
+      console.error('Error finding similar products:', error);
+      return [];
+    }
+  }
+
+  private transformProductsByLanguage(
+    products: FlattenMaps<ProductDocument>[],
+    language?: 'ka' | 'en',
+  ): (ProductDocument | Record<string, unknown>)[] {
+    if (!language) {
+      return products as (ProductDocument | Record<string, unknown>)[];
+    }
+
+    return products.map((product) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.transformProductByLanguage(product as any, language),
+    );
   }
 
   async create(createProductDto: CreateProductDto): Promise<ProductDocument> {
@@ -304,5 +587,122 @@ export class ProductsService {
       }
       throw new BadRequestException('Failed to delete product');
     }
+  }
+
+  private transformCategoryByLanguage(
+    category: FlattenMaps<{ name: LocalizedText; slug: string }>,
+    language: 'ka' | 'en',
+  ): { name: string; slug: string } {
+    const transformed = { ...category } as Record<string, unknown>;
+    transformed.name =
+      category.name?.[language] || category.name?.en || category.name?.ka;
+    transformed.slug = category.slug;
+    return transformed as { name: string; slug: string };
+  }
+
+  /**
+   * Transform product document to return localized strings based on language
+   */
+
+  private transformProductByLanguage(
+    product: FlattenMaps<ProductType>,
+    language: 'ka' | 'en',
+  ): Record<string, unknown> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const transformed = { ...product } as Record<string, unknown>;
+
+    // Transform name
+    transformed.name =
+      product.name?.[language] || product.name?.en || product.name?.ka;
+    transformed.description =
+      product.description?.[language] ||
+      product.description?.en ||
+      product.description?.ka;
+
+    // Transform specs
+    if (product?.specs && Array.isArray(product.specs)) {
+      transformed.specs = product.specs.map((spec) => ({
+        ...spec,
+        label: spec.label[language] || spec.label.en || spec.label.ka,
+        value: spec.value[language] || spec.value.en || spec.value.ka,
+      }));
+    }
+
+    // Transform populated brandId
+    // if (
+    //   product?.brandId &&
+    //   typeof product.brandId === 'object' &&
+    //   (product.brandId as Record<string, unknown>).name
+    // ) {
+    //   const brandIdObj = product.brandId as Record<string, unknown>;
+    //   const brandName = brandIdObj.name;
+    //   transformed.brandId = {
+    //     ...brandIdObj,
+    //     name:
+    //       typeof brandName === 'object'
+    //         ? (brandName as { ka?: string; en?: string })[language] ||
+    //           (brandName as { ka?: string; en?: string }).en ||
+    //           (brandName as { ka?: string; en?: string }).ka
+    //         : brandName,
+    //   };
+    // }
+
+    transformed.brandId = this.transformCategoryByLanguage(
+      product.brandId,
+      language,
+    );
+
+    // Transform populated categoryId
+    // if (
+    //   product?.categoryId &&
+    //   typeof product.categoryId === 'object' &&
+    //   (product.categoryId as Record<string, unknown>).name
+    // ) {
+    //   const categoryIdObj = product.categoryId as Record<string, unknown>;
+    //   const categoryName = categoryIdObj.name;
+    //   transformed.categoryId = {
+    //     ...categoryIdObj,
+    //     name:
+    //       typeof categoryName === 'object'
+    //         ? (categoryName as { ka?: string; en?: string })[language] ||
+    //           (categoryName as { ka?: string; en?: string }).en ||
+    //           (categoryName as { ka?: string; en?: string }).ka
+    //         : categoryName,
+    //   };
+    // }
+
+    transformed.categoryId = this.transformCategoryByLanguage(
+      product.categoryId,
+      language,
+    );
+
+    // Transform populated childCategoryId
+    // if (
+    //   product?.childCategoryId &&
+    //   typeof product.childCategoryId === 'object' &&
+    //   (product.childCategoryId as Record<string, unknown>).name
+    // ) {
+    //   const childCategoryIdObj = product.childCategoryId as Record<
+    //     string,
+    //     unknown
+    //   >;
+    //   const childCategoryName = childCategoryIdObj.name;
+    //   transformed.childCategoryId = {
+    //     ...childCategoryIdObj,
+    //     name:
+    //       typeof childCategoryName === 'object'
+    //         ? (childCategoryName as { ka?: string; en?: string })[language] ||
+    //           (childCategoryName as { ka?: string; en?: string }).en ||
+    //           (childCategoryName as { ka?: string; en?: string }).ka
+    //         : childCategoryName,
+    //   };
+    // }
+
+    transformed.childCategoryId = this.transformCategoryByLanguage(
+      product.childCategoryId,
+      language,
+    );
+
+    return transformed;
   }
 }
