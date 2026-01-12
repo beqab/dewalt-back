@@ -50,16 +50,34 @@ export class ProductsController {
     description: 'Filter by brand ID',
   })
   @ApiQuery({
+    name: 'brandSlug',
+    required: false,
+    type: String,
+    description: 'Filter by brand slug',
+  })
+  @ApiQuery({
     name: 'categoryId',
     required: false,
     type: String,
     description: 'Filter by category ID',
   })
   @ApiQuery({
+    name: 'categorySlug',
+    required: false,
+    type: String,
+    description: 'Filter by category slug',
+  })
+  @ApiQuery({
     name: 'childCategoryId',
     required: false,
     type: String,
     description: 'Filter by child category ID',
+  })
+  @ApiQuery({
+    name: 'childCategorySlug',
+    required: false,
+    type: String,
+    description: 'Filter by child category slug',
   })
   @ApiQuery({
     name: 'inStock',
@@ -94,8 +112,11 @@ export class ProductsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('brandId') brandId?: string,
+    @Query('brandSlug') brandSlug?: string,
     @Query('categoryId') categoryId?: string,
+    @Query('categorySlug') categorySlug?: string,
     @Query('childCategoryId') childCategoryId?: string,
+    @Query('childCategorySlug') childCategorySlug?: string,
     @Query('inStock') inStock?: string,
     @Query('minPrice') minPrice?: string,
     @Query('maxPrice') maxPrice?: string,
@@ -106,8 +127,11 @@ export class ProductsController {
     const limitNum = limit ? parseInt(String(limit), 10) : 10;
     const filters: {
       brandId?: string;
+      brandSlug?: string;
       categoryId?: string;
+      categorySlug?: string;
       childCategoryId?: string;
+      childCategorySlug?: string;
       inStock?: boolean;
       minPrice?: number;
       maxPrice?: number;
@@ -116,8 +140,12 @@ export class ProductsController {
     } = {};
 
     if (brandId) filters.brandId = String(brandId);
+    if (brandSlug) filters.brandSlug = String(brandSlug);
     if (categoryId) filters.categoryId = String(categoryId);
+    if (categorySlug) filters.categorySlug = String(categorySlug);
     if (childCategoryId) filters.childCategoryId = String(childCategoryId);
+    if (childCategorySlug)
+      filters.childCategorySlug = String(childCategorySlug);
     if (inStock !== undefined) {
       const inStockValue = String(inStock);
       filters.inStock = inStockValue === 'true' || inStockValue === '1';

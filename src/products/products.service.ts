@@ -39,13 +39,49 @@ export class ProductsService {
     private childCategoryModel: Model<ChildCategory>,
   ) {}
 
+  /**
+   * Resolve slug to ID for brand, category, or child category
+   * Returns the ID if it's already an ID, or resolves slug to ID
+   */
+  private async resolveIdFromSlugOrId(
+    value: string,
+    type: 'brand' | 'category' | 'childCategory',
+  ): Promise<string | null> {
+    // Check if it's already a valid ObjectId
+    if (Types.ObjectId.isValid(value)) {
+      return value;
+    }
+
+    // Otherwise, treat it as a slug and resolve it
+    try {
+      let doc: { _id: Types.ObjectId } | null = null;
+      switch (type) {
+        case 'brand':
+          doc = await this.brandModel.findOne({ slug: value }).exec();
+          break;
+        case 'category':
+          doc = await this.categoryModel.findOne({ slug: value }).exec();
+          break;
+        case 'childCategory':
+          doc = await this.childCategoryModel.findOne({ slug: value }).exec();
+          break;
+      }
+      return doc ? doc._id.toString() : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   async findAll(
     page = 1,
     limit = 10,
     filters?: {
       brandId?: string;
+      brandSlug?: string; // Can be comma-separated for multiple brands
       categoryId?: string;
+      categorySlug?: string;
       childCategoryId?: string;
+      childCategorySlug?: string;
       inStock?: boolean;
       minPrice?: number;
       maxPrice?: number;
@@ -63,16 +99,65 @@ export class ProductsService {
       const skip = (page - 1) * limit;
       const query: FilterQuery<ProductDocument> = {};
 
-      if (filters?.brandId) {
-        query.brandId = new Types.ObjectId(filters.brandId);
+      // Resolve brand (ID or slug) - supports multiple brands
+      if (filters?.brandId || filters?.brandSlug) {
+        const brandValue = filters.brandId || filters.brandSlug;
+        if (brandValue) {
+          // Support comma-separated values for multiple brands
+          const brandValues = brandValue
+            .split(',')
+            .map((v) => v.trim())
+            .filter(Boolean);
+
+          // Resolve all brand slugs/IDs to ObjectIds
+          const brandIds = await Promise.all(
+            brandValues.map((value) =>
+              this.resolveIdFromSlugOrId(value, 'brand'),
+            ),
+          );
+
+          // Filter out null values and convert to ObjectIds
+          const validBrandIds = brandIds
+            .filter((id): id is string => id !== null)
+            .map((id) => new Types.ObjectId(id));
+
+          if (validBrandIds.length > 0) {
+            // Use $in for multiple brands, single ObjectId for one brand
+            query.brandId =
+              validBrandIds.length === 1
+                ? validBrandIds[0]
+                : { $in: validBrandIds };
+          }
+        }
       }
 
-      if (filters?.categoryId) {
-        query.categoryId = new Types.ObjectId(filters.categoryId);
+      // Resolve category (ID or slug)
+      if (filters?.categoryId || filters?.categorySlug) {
+        const categoryValue = filters.categoryId || filters.categorySlug;
+        if (categoryValue) {
+          const categoryId = await this.resolveIdFromSlugOrId(
+            categoryValue,
+            'category',
+          );
+          if (categoryId) {
+            query.categoryId = new Types.ObjectId(categoryId);
+          }
+        }
       }
 
-      if (filters?.childCategoryId) {
-        query.childCategoryId = new Types.ObjectId(filters.childCategoryId);
+      // Resolve child category (ID or slug)
+      if (filters?.childCategoryId || filters?.childCategorySlug) {
+        const childCategoryValue =
+          filters.childCategoryId || filters.childCategorySlug;
+        if (childCategoryValue) {
+          const childCategoryId = await this.resolveIdFromSlugOrId(
+            childCategoryValue,
+            'childCategory',
+          );
+          if (childCategoryId) {
+            query.childCategoryId = new Types.ObjectId(childCategoryId);
+          }
+        }
       }
 
       if (filters?.inStock !== undefined) {
