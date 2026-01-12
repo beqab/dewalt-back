@@ -656,6 +656,7 @@ export class CategoriesService {
               id: categoryId,
               name: translateName(category.name),
               subCategories,
+              slug: category.slug,
             };
           },
         );
@@ -664,6 +665,7 @@ export class CategoriesService {
           id: brandId,
           name: translateName(brand.name),
           categories: menuCategories,
+          slug: brand.slug,
         };
       });
 
