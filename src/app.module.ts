@@ -20,10 +20,9 @@ import { JwtModule } from '@nestjs/jwt';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      // Load from .env file if it exists, but also read from process.env (for Railway, Vercel, etc.)
-      envFilePath: ['.env'],
-      // Don't ignore .env file, but ConfigModule always reads from process.env by default
-      // This ensures Railway environment variables are always read
+      // Load from .env file if it exists, but always read from process.env (Railway, Vercel, etc.)
+      // This matches how Next.js apps handle environment variables
+      envFilePath: '.env',
     }),
     // Make JwtModule global so all modules can use AdminAuthGuard
     JwtModule.registerAsync({
@@ -45,22 +44,17 @@ import { JwtModule } from '@nestjs/jwt';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        // Read directly from process.env first (Railway sets these)
-        // Then try ConfigService (which reads from .env file)
+        // Read directly from process.env (Railway/Vercel set these directly)
+        // This matches how flexfit-admin handles environment variables
         const uri =
           process.env.MONGODB_URI || configService.get<string>('MONGODB_URI');
 
         if (!uri) {
-          console.error('=== MongoDB Configuration Error ===');
-          console.error('MONGODB_URI is not set in environment variables.');
-          console.error('Please set MONGODB_URI in Railway Variables tab.');
-          console.error('===================================');
           throw new Error(
             'MONGODB_URI environment variable is not set. Please configure it in Railway Variables tab.',
           );
         }
 
-        console.log('MongoDB URI configured successfully');
         return { uri };
       },
       inject: [ConfigService],
