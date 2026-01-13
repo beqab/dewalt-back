@@ -40,8 +40,9 @@ import { JwtModule } from '@nestjs/jwt';
       global: true, // Make it available to all modules
     }),
     MongooseModule.forRootAsync({
-      useFactory: () => {
-        const uri = process.env.MONGODB_URI;
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const uri = configService.get<string>('MONGODB_URI');
 
         if (!uri) {
           throw new Error('MONGODB_URI environment variable is not set.');
@@ -49,6 +50,7 @@ import { JwtModule } from '@nestjs/jwt';
 
         return { uri };
       },
+      inject: [ConfigService],
     }),
     I18nModule.forRootAsync({
       useFactory: () => {
