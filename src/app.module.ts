@@ -22,7 +22,8 @@ import { JwtModule } from '@nestjs/jwt';
       isGlobal: true,
       // Load from .env file if it exists, but also read from process.env (for Railway, Vercel, etc.)
       envFilePath: ['.env'],
-      ignoreEnvFile: false, // Don't ignore .env file, but also read from process.env
+      // Don't ignore .env file, but ConfigModule always reads from process.env by default
+      // This ensures Railway environment variables are always read
     }),
     // Make JwtModule global so all modules can use AdminAuthGuard
     JwtModule.registerAsync({
@@ -44,24 +45,18 @@ import { JwtModule } from '@nestjs/jwt';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        // Try to get from ConfigService first, then fallback to process.env
+        // Read directly from process.env first (Railway sets these)
+        // Then try ConfigService (which reads from .env file)
         const uri =
-          configService.get<string>('MONGODB_URI') || process.env.MONGODB_URI;
+          process.env.MONGODB_URI || configService.get<string>('MONGODB_URI');
 
         if (!uri) {
-          // Log available env vars for debugging (without sensitive data)
-          const envKeys = Object.keys(process.env).filter(
-            (key) =>
-              !key.toLowerCase().includes('secret') &&
-              !key.toLowerCase().includes('password') &&
-              !key.toLowerCase().includes('token'),
-          );
-          console.error('Available environment variables:', envKeys);
-          console.error(
-            'MONGODB_URI is missing. Please set it in Railway environment variables.',
-          );
+          console.error('=== MongoDB Configuration Error ===');
+          console.error('MONGODB_URI is not set in environment variables.');
+          console.error('Please set MONGODB_URI in Railway Variables tab.');
+          console.error('===================================');
           throw new Error(
-            'MONGODB_URI environment variable is not set. Please configure it in Railway.',
+            'MONGODB_URI environment variable is not set. Please configure it in Railway Variables tab.',
           );
         }
 
