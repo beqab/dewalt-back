@@ -95,10 +95,9 @@ export const ProductSchema = SchemaFactory.createForClass(Product);
 export type ProductDocument = Product & Document;
 
 // Add indexes for better query performance
+// Note: slug and code already have indexes from unique: true, so we don't need to add them again
 ProductSchema.index({ brandId: 1 });
 ProductSchema.index({ categoryId: 1 });
 ProductSchema.index({ childCategoryId: 1 });
-ProductSchema.index({ slug: 1 });
-ProductSchema.index({ code: 1 });
 ProductSchema.index({ price: 1 });
 ProductSchema.index({ inStock: 1 });
