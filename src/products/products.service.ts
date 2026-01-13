@@ -15,7 +15,7 @@ import {
 } from '../categories/entities/category.entity';
 import { ChildCategory } from '../categories/entities/child-category.entity';
 import { ProductSpec, ProductSpecDocument } from './entities';
-import { LocalizedText } from 'src/categories/entities';
+import { LocalizedText } from '../categories/entities';
 
 interface CategoryType extends Record<string, unknown> {
   _id: string;

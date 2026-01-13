@@ -26,10 +26,10 @@ import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { AdminResponseDto } from './dto/admin-response.dto';
 import { LoginAdminDto } from './dto/login-admin.dto';
-import { CurrentAdmin } from 'src/decorators/getCurrentAdmin';
-import type { CurrentAdminType } from 'src/interceptors/current-admin.interceptor';
-import { AdminAuthGuard } from 'src/guards/admin.guard';
-import { CurrentAdminInterceptor } from 'src/interceptors/current-admin.interceptor';
+import { CurrentAdmin } from '../decorators/getCurrentAdmin';
+import type { CurrentAdminType } from '../interceptors/current-admin.interceptor';
+import { AdminAuthGuard } from '../guards/admin.guard';
+import { CurrentAdminInterceptor } from '../interceptors/current-admin.interceptor';
 
 @ApiTags('admin')
 @Controller('admin')

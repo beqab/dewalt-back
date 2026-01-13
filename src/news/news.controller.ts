@@ -23,7 +23,7 @@ import { NewsService } from './news.service';
 import { CreateNewsDto } from './dto/create-news.dto';
 import { UpdateNewsDto } from './dto/update-news.dto';
 import { PaginatedNewsResponseDto, NewsDto } from './dto/news-response.dto';
-import { AdminAuthGuard } from 'src/guards/admin.guard';
+import { AdminAuthGuard } from '../guards/admin.guard';
 
 @ApiTags('news')
 @Controller('news')

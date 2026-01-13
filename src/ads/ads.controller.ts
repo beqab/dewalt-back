@@ -23,7 +23,7 @@ import { AdsService } from './ads.service';
 import { CreateAdDto } from './dto/create-ad.dto';
 import { UpdateAdDto } from './dto/update-ad.dto';
 import { AdResponseDto } from './dto/ad-response.dto';
-import { AdminAuthGuard } from 'src/guards/admin.guard';
+import { AdminAuthGuard } from '../guards/admin.guard';
 import { AdPosition } from './entities/ad.entity';
 
 @ApiTags('ads')

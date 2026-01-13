@@ -21,7 +21,7 @@ import {
 import { Types } from 'mongoose';
 import { ProductsService } from './products.service';
 import { CreateProductDto, ProductResponseDto } from './dto';
-import { AdminAuthGuard } from 'src/guards/admin.guard';
+import { AdminAuthGuard } from '../guards/admin.guard';
 import { ProductDocument } from './entities';
 
 @ApiTags('products')

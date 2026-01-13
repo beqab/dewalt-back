@@ -52,8 +52,11 @@ import { JwtModule } from '@nestjs/jwt';
     }),
     I18nModule.forRootAsync({
       useFactory: () => {
-        // Always use src/i18n, it's more reliable in both dev and production
-        const i18nPath = join(process.cwd(), 'src', 'i18n');
+        // Use dist/i18n in production, src/i18n in development
+        const isProduction = process.env.NODE_ENV === 'production';
+        const i18nPath = isProduction
+          ? join(process.cwd(), 'dist', 'i18n')
+          : join(process.cwd(), 'src', 'i18n');
 
         return {
           fallbackLanguage: 'en',
@@ -64,7 +67,7 @@ import { JwtModule } from '@nestjs/jwt';
           },
           typesOutputPath: join(
             process.cwd(),
-            'src',
+            isProduction ? 'dist' : 'src',
             'generated',
             'i18n.generated.ts',
           ),

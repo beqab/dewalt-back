@@ -22,7 +22,7 @@ import { CreateBannerDto } from './dto/create-banner.dto';
 import { UpdateBannerDto } from './dto/update-banner.dto';
 import { BannerSliderResponseDto } from './dto/banner-slider-response.dto';
 import { ReorderBannersDto } from './dto/reorder-banners.dto';
-import { AdminAuthGuard } from 'src/guards/admin.guard';
+import { AdminAuthGuard } from '../guards/admin.guard';
 
 @ApiTags('banner-slider')
 @Controller('banner-slider')

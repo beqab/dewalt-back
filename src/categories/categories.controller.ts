@@ -31,7 +31,7 @@ import {
   CategoryResponseDto,
   ChildCategoryResponseDto,
 } from './dto';
-import { AdminAuthGuard } from 'src/guards/admin.guard';
+import { AdminAuthGuard } from '../guards/admin.guard';
 
 @ApiTags('categories')
 @Controller('categories')
