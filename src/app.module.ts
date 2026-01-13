@@ -20,7 +20,9 @@ import { JwtModule } from '@nestjs/jwt';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      // Load from .env file if it exists, but also read from process.env (for Railway, Vercel, etc.)
+      envFilePath: ['.env'],
+      ignoreEnvFile: false, // Don't ignore .env file, but also read from process.env
     }),
     // Make JwtModule global so all modules can use AdminAuthGuard
     JwtModule.registerAsync({
@@ -42,12 +44,28 @@ import { JwtModule } from '@nestjs/jwt';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        const uri = configService.get<string>('MONGODB_URI');
+        // Try to get from ConfigService first, then fallback to process.env
+        const uri =
+          configService.get<string>('MONGODB_URI') || process.env.MONGODB_URI;
 
         if (!uri) {
-          throw new Error('MONGODB_URI environment variable is not set.');
+          // Log available env vars for debugging (without sensitive data)
+          const envKeys = Object.keys(process.env).filter(
+            (key) =>
+              !key.toLowerCase().includes('secret') &&
+              !key.toLowerCase().includes('password') &&
+              !key.toLowerCase().includes('token'),
+          );
+          console.error('Available environment variables:', envKeys);
+          console.error(
+            'MONGODB_URI is missing. Please set it in Railway environment variables.',
+          );
+          throw new Error(
+            'MONGODB_URI environment variable is not set. Please configure it in Railway.',
+          );
         }
 
+        console.log('MongoDB URI configured successfully');
         return { uri };
       },
       inject: [ConfigService],
