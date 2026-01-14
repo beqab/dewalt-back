@@ -86,6 +86,7 @@ export class ProductsService {
       minPrice?: number;
       maxPrice?: number;
       search?: string;
+      sort?: string;
     },
     language?: 'ka' | 'en',
   ): Promise<{
@@ -181,13 +182,24 @@ export class ProductsService {
         ];
       }
 
+      // Determine sort order
+      let sortOrder: Record<string, 1 | -1> = { createdAt: -1 }; // Default sort
+      if (filters?.sort) {
+        if (filters.sort === 'price-asc') {
+          sortOrder = { price: 1 };
+        } else if (filters.sort === 'price-desc') {
+          sortOrder = { price: -1 };
+        }
+        // If sort is empty or invalid, use default (createdAt: -1)
+      }
+
       const [data, total] = await Promise.all([
         this.productModel
           .find(query)
           .populate('brandId', 'name slug')
           .populate('categoryId', 'name slug')
           .populate('childCategoryId', 'name slug')
-          .sort({ createdAt: -1 })
+          .sort(sortOrder)
           .skip(skip)
           .limit(limit)
           .lean()

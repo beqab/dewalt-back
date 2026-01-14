@@ -103,6 +103,13 @@ export class ProductsController {
     type: String,
     description: 'Search in name and code',
   })
+  @ApiQuery({
+    name: 'sort',
+    required: false,
+    type: String,
+    description:
+      'Sort by price: price-asc (ascending) or price-desc (descending)',
+  })
   @ApiResponse({
     status: 200,
     description: 'Products retrieved successfully',
@@ -121,6 +128,7 @@ export class ProductsController {
     @Query('minPrice') minPrice?: string,
     @Query('maxPrice') maxPrice?: string,
     @Query('search') search?: string,
+    @Query('sort') sort?: string,
     @Query('language') language?: 'ka' | 'en',
   ) {
     const pageNum = page ? parseInt(String(page), 10) : 1;
@@ -136,6 +144,7 @@ export class ProductsController {
       minPrice?: number;
       maxPrice?: number;
       search?: string;
+      sort?: string;
       language?: string;
     } = {};
 
@@ -153,6 +162,7 @@ export class ProductsController {
     if (minPrice) filters.minPrice = parseFloat(String(minPrice));
     if (maxPrice) filters.maxPrice = parseFloat(String(maxPrice));
     if (search) filters.search = String(search);
+    if (sort) filters.sort = String(sort);
     if (language) filters.language = String(language);
 
     return this.productsService.findAll(pageNum, limitNum, filters, language);
