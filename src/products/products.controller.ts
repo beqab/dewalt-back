@@ -18,7 +18,6 @@ import {
   ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { Types } from 'mongoose';
 import { ProductsService } from './products.service';
 import { CreateProductDto, ProductResponseDto } from './dto';
 import { AdminAuthGuard } from '../guards/admin.guard';
