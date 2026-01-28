@@ -16,6 +16,7 @@ import { join } from 'path';
 import { TranslationModule } from './translation/translation.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
+import { OrdersModule } from './orders/orders.module';
 
 @Module({
   imports: [
@@ -94,6 +95,7 @@ import { JwtModule } from '@nestjs/jwt';
     CategoriesModule,
     ProductsModule,
     RatingsModule,
+    OrdersModule,
     TranslationModule,
   ],
   controllers: [AppController],
