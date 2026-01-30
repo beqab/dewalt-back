@@ -1,9 +1,11 @@
 import {
   Controller,
+  Get,
   Post,
   Body,
   HttpCode,
   HttpStatus,
+  Query,
   UseGuards,
   Patch,
   Res,
@@ -16,6 +18,7 @@ import {
   ApiResponse,
   ApiBody,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -181,6 +184,14 @@ export class AuthController {
   })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
     return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Get('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify email with token' })
+  @ApiQuery({ name: 'token', required: true, type: String })
+  async verifyEmail(@Query('token') token: string) {
+    return this.authService.verifyEmail(token);
   }
 
   @Patch('change-password')

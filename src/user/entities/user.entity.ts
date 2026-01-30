@@ -24,6 +24,15 @@ export class User {
   @Prop({ type: Date, default: null, required: false })
   passwordResetExpires: Date | null;
 
+  @Prop({ type: Boolean, default: false })
+  emailVerified: boolean;
+
+  @Prop({ type: String, default: null, required: false })
+  emailVerificationToken: string | null;
+
+  @Prop({ type: Date, default: null, required: false })
+  emailVerificationExpires: Date | null;
+
   @Prop({ default: true })
   isActive: boolean;
 

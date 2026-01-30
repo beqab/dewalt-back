@@ -41,11 +41,16 @@ export class AuthService {
       const hashedPassword = await bcrypt.hash(registerDto.password, 10);
 
       // Create user
+      const verificationToken = randomBytes(32).toString('hex');
+      const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const user = await this.userModel.create({
         name: registerDto.name,
         surname: registerDto.surname,
         email: registerDto.email.toLowerCase(),
         password: hashedPassword,
+        emailVerified: false,
+        emailVerificationToken: verificationToken,
+        emailVerificationExpires: verificationExpires,
       });
 
       if (!user || !user._id) {
@@ -63,11 +68,13 @@ export class AuthService {
         $push: { refreshTokens: tokens.refreshToken },
       });
 
+      await this.sendVerificationEmail(user.email, verificationToken);
+
       // Get user without password
       const userResponse = await this.userModel
         .findById(user._id)
         .select(
-          '-password -refreshTokens -passwordResetToken -passwordResetExpires',
+          '-password -refreshTokens -passwordResetToken -passwordResetExpires -emailVerificationToken -emailVerificationExpires',
         )
         .lean();
 
@@ -99,6 +106,10 @@ export class AuthService {
         throw new UnauthorizedException('Account is deactivated');
       }
 
+      if (!user.emailVerified) {
+        throw new UnauthorizedException('Please verify your email first');
+      }
+
       // Verify password
       const passwordMatch = await bcrypt.compare(
         loginDto.password,
@@ -124,7 +135,7 @@ export class AuthService {
       const userResponse = await this.userModel
         .findById(user._id)
         .select(
-          '-password -refreshTokens -passwordResetToken -passwordResetExpires',
+          '-password -refreshTokens -passwordResetToken -passwordResetExpires -emailVerificationToken -emailVerificationExpires',
         )
         .lean();
 
@@ -140,6 +151,78 @@ export class AuthService {
         throw error;
       }
       throw new BadRequestException('Login failed');
+    }
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    if (!token) {
+      throw new BadRequestException('Verification token is required');
+    }
+
+    const user = await this.userModel.findOne({
+      emailVerificationToken: token,
+      emailVerificationExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    user.emailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpires = null;
+    await user.save();
+
+    return { message: 'Email verified successfully' };
+  }
+
+  private async sendVerificationEmail(email: string, token: string) {
+    const resendKey = this.configService.get<string>('RESEND_EMAIL_KEY');
+    if (!resendKey) {
+      throw new BadRequestException('RESEND_EMAIL_KEY is not configured');
+    }
+
+    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
+    const frontUrl = this.configService.get<string>('FRONT_URL') || '';
+    const normalizedFrontUrl = frontUrl.endsWith('/')
+      ? frontUrl
+      : `${frontUrl}/`;
+    const verifyUrl = `${normalizedFrontUrl}ka/verify-email?token=${token}`;
+    const fromEmail =
+      this.configService.get<string>('RESEND_FROM_EMAIL') ||
+      'onboarding@resend.dev';
+
+    const testRecipient = this.configService.get<string>('RESEND_TEST_EMAIL');
+    const recipientEmail =
+      nodeEnv !== 'production' && testRecipient ? testRecipient : email;
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [recipientEmail],
+        subject: 'Verify your email',
+        html: `<p>Welcome to Dewalt.</p><p>Please verify your email by clicking the link below:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>${
+          recipientEmail !== email ? `<p>Intended recipient: ${email}</p>` : ''
+        }`,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      if (nodeEnv !== 'production') {
+        console.error(
+          `Failed to send verification email: ${errorText}. Verify link: ${verifyUrl}`,
+        );
+        return;
+      }
+      throw new BadRequestException(
+        `Failed to send verification email: ${errorText}`,
+      );
     }
   }
 
@@ -168,11 +251,9 @@ export class AuthService {
         passwordResetToken: resetToken,
         passwordResetExpires: resetTokenExpiry,
       });
+      await this.sendPasswordResetEmail(user.email, resetToken);
 
-      // TODO: Send email with reset link
-      // For now, we'll return the token (in production, send via email)
-      console.log(`Password reset token for ${user.email}: ${resetToken}`);
-
+      console.log('Password reset email sent');
       return {
         message:
           'If an account with that email exists, a password reset link has been sent.',
@@ -387,5 +468,55 @@ export class AuthService {
       tokenExpiresAt,
       refreshToken,
     };
+  }
+
+  private async sendPasswordResetEmail(email: string, token: string) {
+    const resendKey = this.configService.get<string>('RESEND_EMAIL_KEY');
+    if (!resendKey) {
+      throw new BadRequestException('RESEND_EMAIL_KEY is not configured');
+    }
+
+    const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
+    const frontUrl = this.configService.get<string>('FRONT_URL') || '';
+    const normalizedFrontUrl = frontUrl.endsWith('/')
+      ? frontUrl
+      : `${frontUrl}/`;
+    const resetUrl = `${normalizedFrontUrl}ka/reset-password?token=${token}`;
+    const fromEmail =
+      this.configService.get<string>('RESEND_FROM_EMAIL') ||
+      'onboarding@resend.dev';
+
+    const testRecipient = this.configService.get<string>('RESEND_TEST_EMAIL');
+    const recipientEmail =
+      nodeEnv !== 'production' && testRecipient ? testRecipient : email;
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [recipientEmail],
+        subject: 'Reset your password',
+        html: `<p>You requested a password reset.</p><p>Click the link below to set a new password:</p><p><a href="${resetUrl}">${resetUrl}</a></p>${
+          recipientEmail !== email ? `<p>Intended recipient: ${email}</p>` : ''
+        }`,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      if (nodeEnv !== 'production') {
+        console.error(
+          `Failed to send password reset email: ${errorText}. Reset link: ${resetUrl}`,
+        );
+        return;
+      }
+      throw new BadRequestException(
+        `Failed to send password reset email: ${errorText}`,
+      );
+    }
   }
 }
