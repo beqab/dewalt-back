@@ -2,6 +2,13 @@
     "VerifyCodeSend": "ვერიფიკაციის კოდი გამოიგზავნა",
     "VerificationCode": "ვერიფიკაციის კოდი",
     "PasswordResetCode": "პაროლის აღდგენის კოდი",
-    "ResetCodeSendTo:": "კოდი გამოგზავნილა ნომერზე:"
+    "ResetCodeSendTo:": "კოდი გამოგზავნილა ნომერზე:",
+    "PasswordResetEmailSent": "თუ ეს ელ.ფოსტა არსებობს, პაროლის აღდგენის ბმული გამოგზავნილია.",
+    "PasswordResetRequestFailed": "პაროლის აღდგენის მოთხოვნა ვერ შესრულდა.",
+    "PasswordResetEmailSubject": "პაროლის აღდგენა",
+    "PasswordResetEmailIntro": "პაროლის აღდგენა მოითხოვეთ.",
+    "PasswordResetEmailCta": "დააჭირეთ ქვემოთ ბმულს ახალი პაროლის დასაყენებლად:",
+    "PasswordResetEmailIntendedRecipient": "განკუთვნილი მიმღები: {email}",
+    "PasswordResetEmailFooter": "თუ ეს ელ.წერილი თქვენ არ მოგითხოვიათ, შეგიძლიათ უგულებელყოთ."
   }
   

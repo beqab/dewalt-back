@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { User, UserSchema } from '../user/entities/user.entity';
+import { TranslationModule } from '../translation/translation.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { User, UserSchema } from '../user/entities/user.entity';
       }),
       inject: [ConfigService],
     }),
+    TranslationModule,
   ],
   controllers: [AuthController],
   providers: [AuthService],

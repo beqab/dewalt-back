@@ -3,5 +3,12 @@
   "VerificationCode": "Verification Code",
   "PasswordResetCode": "Password Reset Code",
   "ResetCodeSendTo:": "Reset code send to:",
-  "PasswordUpdatedSuccessfully": "Password updated Successfully"
+  "PasswordUpdatedSuccessfully": "Password updated Successfully",
+  "PasswordResetEmailSent": "If an account with that email exists, a password reset link has been sent.",
+  "PasswordResetRequestFailed": "Password reset request failed",
+  "PasswordResetEmailSubject": "Reset your password",
+  "PasswordResetEmailIntro": "You requested a password reset.",
+  "PasswordResetEmailCta": "Click the link below to set a new password:",
+  "PasswordResetEmailIntendedRecipient": "Intended recipient: {email}",
+  "PasswordResetEmailFooter": "If you did not request this email, you can safely ignore it."
 }

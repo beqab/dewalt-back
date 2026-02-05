@@ -17,6 +17,7 @@ import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { AuthResponseDto, UserResponseDto } from './dto/auth-response.dto';
+import { TranslationHelperService } from '../translation/translationHelper.service';
 
 @Injectable()
 export class AuthService {
@@ -24,9 +25,11 @@ export class AuthService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private translationHelper: TranslationHelperService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
+    const tAuth = this.translationHelper.withNamespace('auth');
     try {
       // Check if user already exists
       const existingUser = await this.userModel.findOne({
@@ -34,7 +37,7 @@ export class AuthService {
       });
 
       if (existingUser) {
-        throw new BadRequestException('User with this email already exists');
+        throw new BadRequestException(tAuth('userExists'));
       }
 
       // Hash password
@@ -54,7 +57,7 @@ export class AuthService {
       });
 
       if (!user || !user._id) {
-        throw new BadRequestException('Failed to create user');
+        throw new BadRequestException(tAuth('createUserFailed'));
       }
 
       // Generate tokens
@@ -87,11 +90,12 @@ export class AuthService {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException('Registration failed');
+      throw new BadRequestException(tAuth('registrationFailed'));
     }
   }
 
   async login(loginDto: LoginDto): Promise<AuthResponseDto> {
+    const tAuth = this.translationHelper.withNamespace('auth');
     try {
       // Find user with email
       const user = await this.userModel.findOne({
@@ -99,15 +103,15 @@ export class AuthService {
       });
 
       if (!user) {
-        throw new BadRequestException('Invalid credentials');
+        throw new BadRequestException(tAuth('invalidCredentials'));
       }
 
       if (!user.isActive) {
-        throw new UnauthorizedException('Account is deactivated');
+        throw new UnauthorizedException(tAuth('accountDeactivated'));
       }
 
       if (!user.emailVerified) {
-        throw new UnauthorizedException('Please verify your email first');
+        throw new UnauthorizedException(tAuth('emailNotVerified'));
       }
 
       // Verify password
@@ -117,7 +121,7 @@ export class AuthService {
       );
 
       if (!passwordMatch) {
-        throw new BadRequestException('Invalid credentials');
+        throw new BadRequestException(tAuth('invalidCredentials'));
       }
 
       // Generate tokens
@@ -150,13 +154,14 @@ export class AuthService {
       ) {
         throw error;
       }
-      throw new BadRequestException('Login failed');
+      throw new BadRequestException(tAuth('loginFailed'));
     }
   }
 
   async verifyEmail(token: string): Promise<{ message: string }> {
+    const tAuth = this.translationHelper.withNamespace('auth');
     if (!token) {
-      throw new BadRequestException('Verification token is required');
+      throw new BadRequestException(tAuth('verifyTokenRequired'));
     }
 
     const user = await this.userModel.findOne({
@@ -165,7 +170,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new BadRequestException('Invalid or expired verification token');
+      throw new BadRequestException(tAuth('verifyTokenInvalid'));
     }
 
     user.emailVerified = true;
@@ -173,13 +178,14 @@ export class AuthService {
     user.emailVerificationExpires = null;
     await user.save();
 
-    return { message: 'Email verified successfully' };
+    return { message: tAuth('emailVerified') };
   }
 
   private async sendVerificationEmail(email: string, token: string) {
+    const tAuth = this.translationHelper.withNamespace('auth');
     const resendKey = this.configService.get<string>('RESEND_EMAIL_KEY');
     if (!resendKey) {
-      throw new BadRequestException('RESEND_EMAIL_KEY is not configured');
+      throw new BadRequestException(tAuth('resendKeyMissing'));
     }
 
     const nodeEnv = this.configService.get<string>('NODE_ENV') || 'development';
@@ -187,7 +193,13 @@ export class AuthService {
     const normalizedFrontUrl = frontUrl.endsWith('/')
       ? frontUrl
       : `${frontUrl}/`;
-    const verifyUrl = `${normalizedFrontUrl}ka/verify-email?token=${token}`;
+    let locale = 'ka';
+    try {
+      locale = this.translationHelper.currentLanguage;
+    } catch {
+      locale = 'ka';
+    }
+    const verifyUrl = `${normalizedFrontUrl}${locale}/verify-email?token=${token}`;
     const fromEmail =
       this.configService.get<string>('RESEND_FROM_EMAIL') ||
       'onboarding@resend.dev';
@@ -205,10 +217,59 @@ export class AuthService {
       body: JSON.stringify({
         from: fromEmail,
         to: [recipientEmail],
-        subject: 'Verify your email',
-        html: `<p>Welcome to Dewalt.</p><p>Please verify your email by clicking the link below:</p><p><a href="${verifyUrl}">${verifyUrl}</a></p>${
-          recipientEmail !== email ? `<p>Intended recipient: ${email}</p>` : ''
-        }`,
+        subject: tAuth('verifyEmailSubject'),
+        html: `
+<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#f5f5f5;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial, sans-serif;box-shadow:0 6px 20px rgba(0,0,0,0.08);">
+            <tr>
+              <td style="background-color:#f9c300;padding:20px 32px;">
+                <h1 style="margin:0;font-size:20px;color:#1f1f1f;letter-spacing:0.5px;">DEWALT</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <h2 style="margin:0 0 12px 0;font-size:20px;color:#1f1f1f;">${tAuth(
+                  'verifyEmailTitle',
+                )}</h2>
+                <p style="margin:0 0 16px 0;color:#4b4b4b;font-size:14px;line-height:1.6;">
+                  ${tAuth('verifyEmailIntro')}
+                </p>
+                <p style="margin:0 0 24px 0;color:#4b4b4b;font-size:14px;line-height:1.6;">
+                  ${tAuth('verifyEmailCta')}
+                </p>
+                <a href="${verifyUrl}" style="display:inline-block;background-color:#f9c300;color:#1f1f1f;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:6px;font-size:14px;">
+                  ${tAuth('verifyEmailButton')}
+                </a>
+                <p style="margin:24px 0 0 0;color:#7a7a7a;font-size:12px;line-height:1.6;">
+                  ${verifyUrl}
+                </p>
+                ${
+                  recipientEmail !== email
+                    ? `<p style="margin:16px 0 0 0;color:#7a7a7a;font-size:12px;line-height:1.6;">${tAuth(
+                        'emailIntendedRecipient',
+                        { email },
+                      )}</p>`
+                    : ''
+                }
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px;background-color:#fafafa;border-top:1px solid #eee;color:#8a8a8a;font-size:12px;">
+                ${tAuth('emailFooter')}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+        `,
       }),
     });
 
@@ -220,15 +281,14 @@ export class AuthService {
         );
         return;
       }
-      throw new BadRequestException(
-        `Failed to send verification email: ${errorText}`,
-      );
+      throw new BadRequestException(tAuth('verificationEmailSendFailed'));
     }
   }
 
   async requestPasswordReset(
     requestPasswordResetDto: RequestPasswordResetDto,
   ): Promise<{ message: string }> {
+    const tUser = this.translationHelper.withNamespace('userService');
     try {
       const user = await this.userModel.findOne({
         email: requestPasswordResetDto.email.toLowerCase(),
@@ -237,8 +297,7 @@ export class AuthService {
       if (!user) {
         // Don't reveal if user exists for security
         return {
-          message:
-            'If an account with that email exists, a password reset link has been sent.',
+          message: tUser('PasswordResetEmailSent'),
         };
       }
 
@@ -255,17 +314,17 @@ export class AuthService {
 
       console.log('Password reset email sent');
       return {
-        message:
-          'If an account with that email exists, a password reset link has been sent.',
+        message: tUser('PasswordResetEmailSent'),
       };
     } catch (error) {
-      throw new BadRequestException('Password reset request failed');
+      throw new BadRequestException(tUser('PasswordResetRequestFailed'));
     }
   }
 
   async resetPassword(
     resetPasswordDto: ResetPasswordDto,
   ): Promise<{ message: string }> {
+    const tAuth = this.translationHelper.withNamespace('auth');
     try {
       // Find user by reset token
       const user = await this.userModel.findOne({
@@ -274,7 +333,7 @@ export class AuthService {
       });
 
       if (!user) {
-        throw new BadRequestException('Invalid or expired reset token');
+        throw new BadRequestException(tAuth('resetTokenInvalid'));
       }
 
       // Hash new password
@@ -289,13 +348,13 @@ export class AuthService {
       });
 
       return {
-        message: 'Password has been reset successfully',
+        message: tAuth('passwordResetSuccess'),
       };
     } catch (error) {
       if (error instanceof BadRequestException) {
         throw error;
       }
-      throw new BadRequestException('Password reset failed');
+      throw new BadRequestException(tAuth('passwordResetFailed'));
     }
   }
 
@@ -303,11 +362,12 @@ export class AuthService {
     userId: string,
     changePasswordDto: ChangePasswordDto,
   ): Promise<{ message: string }> {
+    const tAuth = this.translationHelper.withNamespace('auth');
     try {
       const user = await this.userModel.findById(userId);
 
       if (!user) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException(tAuth('userNotFound'));
       }
 
       // Verify current password
@@ -317,7 +377,7 @@ export class AuthService {
       );
 
       if (!passwordMatch) {
-        throw new BadRequestException('Current password is incorrect');
+        throw new BadRequestException(tAuth('currentPasswordIncorrect'));
       }
 
       // Hash new password
@@ -333,7 +393,7 @@ export class AuthService {
       });
 
       return {
-        message: 'Password has been changed successfully',
+        message: tAuth('passwordChangeSuccess'),
       };
     } catch (error) {
       if (
@@ -342,13 +402,14 @@ export class AuthService {
       ) {
         throw error;
       }
-      throw new BadRequestException('Password change failed');
+      throw new BadRequestException(tAuth('passwordChangeFailed'));
     }
   }
 
   async refreshToken(
     refreshToken: string,
   ): Promise<{ token: string; tokenExpiresAt: Date }> {
+    const tAuth = this.translationHelper.withNamespace('auth');
     try {
       const secret = this.configService.get<string>('USER_REFRESH_SECRET');
       const payload = this.jwtService.verify<{ userId: string; email: string }>(
@@ -360,11 +421,11 @@ export class AuthService {
       const user = await this.userModel.findById(payload.userId);
 
       if (!user || !user.refreshTokens.includes(refreshToken)) {
-        throw new UnauthorizedException('Invalid refresh token');
+        throw new UnauthorizedException(tAuth('invalidRefreshToken'));
       }
 
       if (!user.isActive) {
-        throw new UnauthorizedException('Account is deactivated');
+        throw new UnauthorizedException(tAuth('accountDeactivated'));
       }
 
       // Generate new access token
@@ -386,7 +447,7 @@ export class AuthService {
         tokenExpiresAt,
       };
     } catch (error) {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw new UnauthorizedException(tAuth('refreshTokenInvalid'));
     }
   }
 
@@ -394,20 +455,22 @@ export class AuthService {
     userId: string,
     refreshToken: string,
   ): Promise<{ message: string }> {
+    const tAuth = this.translationHelper.withNamespace('auth');
     try {
       await this.userModel.findByIdAndUpdate(userId, {
         $pull: { refreshTokens: refreshToken },
       });
 
       return {
-        message: 'Logged out successfully',
+        message: tAuth('logoutSuccess'),
       };
     } catch (error) {
-      throw new BadRequestException('Logout failed');
+      throw new BadRequestException(tAuth('logoutFailed'));
     }
   }
 
   async getCurrentUser(userId: string): Promise<UserResponseDto> {
+    const tAuth = this.translationHelper.withNamespace('auth');
     try {
       const user = await this.userModel
         .findById(userId)
@@ -417,7 +480,7 @@ export class AuthService {
         .lean();
 
       if (!user) {
-        throw new NotFoundException('User not found');
+        throw new NotFoundException(tAuth('userNotFound'));
       }
 
       return user as unknown as UserResponseDto;
@@ -425,7 +488,7 @@ export class AuthService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new BadRequestException('Failed to get user');
+      throw new BadRequestException(tAuth('getUserFailed'));
     }
   }
 
@@ -471,6 +534,7 @@ export class AuthService {
   }
 
   private async sendPasswordResetEmail(email: string, token: string) {
+    const tUser = this.translationHelper.withNamespace('userService');
     const resendKey = this.configService.get<string>('RESEND_EMAIL_KEY');
     if (!resendKey) {
       throw new BadRequestException('RESEND_EMAIL_KEY is not configured');
@@ -481,7 +545,13 @@ export class AuthService {
     const normalizedFrontUrl = frontUrl.endsWith('/')
       ? frontUrl
       : `${frontUrl}/`;
-    const resetUrl = `${normalizedFrontUrl}ka/reset-password?token=${token}`;
+    let locale = 'ka';
+    try {
+      locale = this.translationHelper.currentLanguage;
+    } catch {
+      locale = 'ka';
+    }
+    const resetUrl = `${normalizedFrontUrl}${locale}/reset-password?token=${token}`;
     const fromEmail =
       this.configService.get<string>('RESEND_FROM_EMAIL') ||
       'onboarding@resend.dev';
@@ -499,10 +569,59 @@ export class AuthService {
       body: JSON.stringify({
         from: fromEmail,
         to: [recipientEmail],
-        subject: 'Reset your password',
-        html: `<p>You requested a password reset.</p><p>Click the link below to set a new password:</p><p><a href="${resetUrl}">${resetUrl}</a></p>${
-          recipientEmail !== email ? `<p>Intended recipient: ${email}</p>` : ''
-        }`,
+        subject: tUser('PasswordResetEmailSubject'),
+        html: `
+<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#f5f5f5;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#f5f5f5;padding:24px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial, sans-serif;box-shadow:0 6px 20px rgba(0,0,0,0.08);">
+            <tr>
+              <td style="background-color:#f9c300;padding:20px 32px;">
+                <h1 style="margin:0;font-size:20px;color:#1f1f1f;letter-spacing:0.5px;">DEWALT</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <h2 style="margin:0 0 12px 0;font-size:20px;color:#1f1f1f;">${tUser(
+                  'PasswordResetEmailSubject',
+                )}</h2>
+                <p style="margin:0 0 16px 0;color:#4b4b4b;font-size:14px;line-height:1.6;">
+                  ${tUser('PasswordResetEmailIntro')}
+                </p>
+                <p style="margin:0 0 24px 0;color:#4b4b4b;font-size:14px;line-height:1.6;">
+                  ${tUser('PasswordResetEmailCta')}
+                </p>
+                <a href="${resetUrl}" style="display:inline-block;background-color:#f9c300;color:#1f1f1f;text-decoration:none;font-weight:600;padding:12px 24px;border-radius:6px;font-size:14px;">
+                  ${tUser('PasswordResetEmailSubject')}
+                </a>
+                <p style="margin:24px 0 0 0;color:#7a7a7a;font-size:12px;line-height:1.6;">
+                  ${resetUrl}
+                </p>
+                ${
+                  recipientEmail !== email
+                    ? `<p style="margin:16px 0 0 0;color:#7a7a7a;font-size:12px;line-height:1.6;">${tUser(
+                        'PasswordResetEmailIntendedRecipient',
+                        { email },
+                      )}</p>`
+                    : ''
+                }
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 32px;background-color:#fafafa;border-top:1px solid #eee;color:#8a8a8a;font-size:12px;">
+                ${tUser('PasswordResetEmailFooter')}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+        `,
       }),
     });
 

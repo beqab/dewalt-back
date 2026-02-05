@@ -5,6 +5,39 @@
 import { Path } from "nestjs-i18n";
 /* prettier-ignore */
 export type I18nTranslations = {
+    "auth": {
+        "userExists": string;
+        "createUserFailed": string;
+        "registrationFailed": string;
+        "invalidCredentials": string;
+        "accountDeactivated": string;
+        "emailNotVerified": string;
+        "loginFailed": string;
+        "verifyTokenRequired": string;
+        "verifyTokenInvalid": string;
+        "emailVerified": string;
+        "resendKeyMissing": string;
+        "verificationEmailSendFailed": string;
+        "verifyEmailSubject": string;
+        "verifyEmailTitle": string;
+        "verifyEmailIntro": string;
+        "verifyEmailCta": string;
+        "verifyEmailButton": string;
+        "emailIntendedRecipient": string;
+        "emailFooter": string;
+        "resetTokenInvalid": string;
+        "passwordResetSuccess": string;
+        "passwordResetFailed": string;
+        "userNotFound": string;
+        "currentPasswordIncorrect": string;
+        "passwordChangeSuccess": string;
+        "passwordChangeFailed": string;
+        "invalidRefreshToken": string;
+        "refreshTokenInvalid": string;
+        "logoutSuccess": string;
+        "logoutFailed": string;
+        "getUserFailed": string;
+    };
     "error": {
         "Hello": string;
         "Success": string;
@@ -23,6 +56,13 @@ export type I18nTranslations = {
         "PasswordResetCode": string;
         "ResetCodeSendTo:": string;
         "PasswordUpdatedSuccessfully": string;
+        "PasswordResetEmailSent": string;
+        "PasswordResetRequestFailed": string;
+        "PasswordResetEmailSubject": string;
+        "PasswordResetEmailIntro": string;
+        "PasswordResetEmailCta": string;
+        "PasswordResetEmailIntendedRecipient": string;
+        "PasswordResetEmailFooter": string;
     };
 };
 /* prettier-ignore */
