@@ -8,6 +8,7 @@ import {
   ChildCategory,
   ChildCategorySchema,
 } from './entities/child-category.entity';
+import { TranslationModule } from '../translation/translation.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import {
       { name: Category.name, schema: CategorySchema },
       { name: ChildCategory.name, schema: ChildCategorySchema },
     ]),
+    TranslationModule,
   ],
   controllers: [CategoriesController],
   providers: [CategoriesService],

@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, ObjectId } from 'mongoose';
+import { FlattenMaps, Model, ObjectId } from 'mongoose';
 import {
   Brand,
   BrandDocument,
@@ -23,6 +23,7 @@ import {
   UpdateChildCategoryDto,
 } from './dto';
 import type { LocalizedText } from './types/localized-text.interface';
+import { TranslationHelperService } from '../translation/translationHelper.service';
 
 @Injectable()
 export class CategoriesService {
@@ -32,11 +33,56 @@ export class CategoriesService {
     private categoryModel: Model<CategoryDocument>,
     @InjectModel(ChildCategory.name)
     private childCategoryModel: Model<ChildCategoryDocument>,
+    private translationHelper: TranslationHelperService,
   ) {}
 
   // ==================== BRAND METHODS ====================
 
-  async findAllBrands(): Promise<BrandDocument[]> {
+  async findAllBrands(): Promise<
+    {
+      _id: FlattenMaps<unknown>;
+      name: string;
+      slug: string;
+      createdAt: Date;
+      updatedAt: Date;
+    }[]
+  > {
+    try {
+      let lang: 'ka' | 'en' = 'ka';
+      try {
+        lang = this.translationHelper.currentLanguage;
+      } catch {
+        lang = 'ka';
+      }
+
+      const translateName = (
+        name: LocalizedText | null | undefined,
+      ): string => {
+        if (!name) return '';
+        if (lang === 'ka' && name.ka) return name.ka;
+        if (lang === 'en' && name.en) return name.en;
+        return name.en || name.ka || '';
+      };
+
+      const brands = await this.brandModel
+        .find()
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
+
+      return brands.map((brand) => ({
+        _id: brand._id,
+        name: translateName(brand.name as LocalizedText),
+        slug: brand.slug,
+        createdAt: brand.createdAt,
+        updatedAt: brand.updatedAt,
+      }));
+    } catch (error) {
+      throw new BadRequestException('Failed to fetch brands');
+    }
+  }
+
+  async findAllBrandsAdmin(): Promise<BrandDocument[]> {
     try {
       return await this.brandModel.find().sort({ createdAt: -1 }).exec();
     } catch (error) {
@@ -580,8 +626,15 @@ export class CategoriesService {
    * and applies localization on the backend based on the requested language.
    */
   /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
-  async getMenuData(lang: 'en' | 'ka' = 'en') {
+  async getMenuData() {
     try {
+      let lang: 'ka' | 'en' = 'ka';
+      try {
+        lang = this.translationHelper.currentLanguage;
+      } catch {
+        lang = 'ka';
+      }
+
       const [brands, categories, childCategories]: [any[], any[], any[]] =
         await Promise.all([
           this.brandModel.find().lean().exec(),
@@ -607,12 +660,14 @@ export class CategoriesService {
       type MenuCategory = {
         id: string;
         name: string;
+        slug: string;
         subCategories: MenuSubCategory[];
       };
 
       type MenuBrand = {
         id: string;
         name: string;
+        slug: string;
         categories: MenuCategory[];
       };
 
@@ -647,14 +702,14 @@ export class CategoriesService {
             const subCategories: MenuSubCategory[] = relatedChildCategories.map(
               (child) => ({
                 id: String(child._id),
-                name: translateName(child.name),
+                name: translateName(child.name as LocalizedText),
                 slug: child.slug,
               }),
             );
 
             return {
               id: categoryId,
-              name: translateName(category.name),
+              name: translateName(category.name as LocalizedText),
               subCategories,
               slug: category.slug,
             };
@@ -663,7 +718,7 @@ export class CategoriesService {
 
         return {
           id: brandId,
-          name: translateName(brand.name),
+          name: translateName(brand.name as LocalizedText),
           categories: menuCategories,
           slug: brand.slug,
         };

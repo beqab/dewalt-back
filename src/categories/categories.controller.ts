@@ -28,6 +28,7 @@ import {
   CreateChildCategoryDto,
   UpdateChildCategoryDto,
   BrandResponseDto,
+  BrandPublicResponseDto,
   CategoryResponseDto,
   ChildCategoryResponseDto,
 } from './dto';
@@ -45,10 +46,23 @@ export class CategoriesController {
   @ApiResponse({
     status: 200,
     description: 'Brands retrieved successfully',
-    type: [BrandResponseDto],
+    type: [BrandPublicResponseDto],
   })
   findAllBrands() {
     return this.categoriesService.findAllBrands();
+  }
+
+  @Get('brands/admin')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Get all brands (admin only, localized object)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Brands retrieved successfully',
+    type: [BrandResponseDto],
+  })
+  findAllBrandsAdmin() {
+    return this.categoriesService.findAllBrandsAdmin();
   }
 
   @Get('brands/:id')
@@ -325,18 +339,11 @@ export class CategoriesController {
     summary:
       'Get menu data (brands, categories, child categories) for header navigation',
   })
-  @ApiQuery({
-    name: 'lang',
-    required: false,
-    description: 'Language for translated names (en or ka)',
-  })
   @ApiResponse({
     status: 200,
     description: 'Menu data retrieved successfully',
   })
-  getMenuData(@Query('lang') lang?: 'en' | 'ka') {
-    const normalizedLang: 'en' | 'ka' =
-      lang === 'ka' || lang === 'en' ? lang : 'en';
-    return this.categoriesService.getMenuData(normalizedLang);
+  getMenuData() {
+    return this.categoriesService.getMenuData();
   }
 }

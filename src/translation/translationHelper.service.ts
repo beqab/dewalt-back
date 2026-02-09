@@ -34,7 +34,7 @@ export class TranslationHelperService {
 
   get currentLanguage(): 'ka' | 'en' {
     const i18nContext = I18nContext.current();
-    const lang = i18nContext?.lang ?? ' ka';
+    const lang = i18nContext?.lang ?? 'ka';
 
     if (this.isSupportedLanguage(lang)) {
       return lang;
