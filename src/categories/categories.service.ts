@@ -24,6 +24,7 @@ import {
 } from './dto';
 import type { LocalizedText } from './types/localized-text.interface';
 import { TranslationHelperService } from '../translation/translationHelper.service';
+import { FrontRevalidateService } from '../revalidate/front-revalidate.service';
 
 @Injectable()
 export class CategoriesService {
@@ -34,6 +35,7 @@ export class CategoriesService {
     @InjectModel(ChildCategory.name)
     private childCategoryModel: Model<ChildCategoryDocument>,
     private translationHelper: TranslationHelperService,
+    private frontRevalidate: FrontRevalidateService,
   ) {}
 
   // ==================== BRAND METHODS ====================
@@ -126,7 +128,9 @@ export class CategoriesService {
         );
       }
 
-      return await this.brandModel.create(createBrandDto);
+      const created = await this.brandModel.create(createBrandDto);
+      void this.frontRevalidate.revalidateTags(['brands']);
+      return created;
     } catch (error) {
       if (
         error instanceof ConflictException ||
@@ -164,6 +168,7 @@ export class CategoriesService {
         throw new NotFoundException(`Brand with ID ${id} not found`);
       }
 
+      void this.frontRevalidate.revalidateTags(['brands']);
       return brand;
     } catch (error) {
       if (
@@ -192,6 +197,8 @@ export class CategoriesService {
       if (!result) {
         throw new NotFoundException(`Brand with ID ${id} not found`);
       }
+
+      void this.frontRevalidate.revalidateTags(['brands']);
     } catch (error) {
       if (
         error instanceof NotFoundException ||

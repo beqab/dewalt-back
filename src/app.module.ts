@@ -17,6 +17,7 @@ import { TranslationModule } from './translation/translation.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { OrdersModule } from './orders/orders.module';
+import { RevalidateModule } from './revalidate/revalidate.module';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { OrdersModule } from './orders/orders.module';
     RatingsModule,
     OrdersModule,
     TranslationModule,
+    RevalidateModule,
   ],
   controllers: [AppController],
   providers: [AppService],
