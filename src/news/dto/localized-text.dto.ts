@@ -12,4 +12,3 @@ export class LocalizedTextDto {
   @IsString()
   en: string;
 }
-

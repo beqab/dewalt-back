@@ -18,7 +18,8 @@ export class CreateChildCategoryDto {
   name: LocalizedTextDto;
 
   @ApiProperty({
-    description: 'Child category slug (URL-friendly identifier, must be unique)',
+    description:
+      'Child category slug (URL-friendly identifier, must be unique)',
     example: 'drills',
   })
   @IsNotEmpty()

@@ -2,7 +2,10 @@ import { ApiProperty } from '@nestjs/swagger';
 import { LocalizedTextDto } from './localized-text.dto';
 
 export class NewsDto {
-  @ApiProperty({ description: 'News article ID', example: '507f1f77bcf86cd799439011' })
+  @ApiProperty({
+    description: 'News article ID',
+    example: '507f1f77bcf86cd799439011',
+  })
   _id: string;
 
   @ApiProperty({
@@ -64,4 +67,3 @@ export class PaginatedNewsResponseDto {
   @ApiProperty({ description: 'Total number of pages', example: 10 })
   totalPages: number;
 }
-

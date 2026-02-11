@@ -44,4 +44,3 @@ export class UpdateNewsDto extends PartialType(CreateNewsDto) {
   @IsOptional()
   content?: LocalizedTextDto;
 }
-

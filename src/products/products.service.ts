@@ -208,7 +208,7 @@ export class ProductsService {
       ]);
 
       // Transform data based on language if provided
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const transformedData = language
         ? data.map((product: any) =>
             this.transformProductByLanguage(product, language),
@@ -246,9 +246,7 @@ export class ProductsService {
         throw new NotFoundException(`Product with ID ${id} not found`);
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if (language) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return this.transformProductByLanguage(product as any, language);
       }
       return product;
@@ -508,7 +506,6 @@ export class ProductsService {
     }
 
     return products.map((product) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.transformProductByLanguage(product as any, language),
     );
   }
@@ -705,7 +702,6 @@ export class ProductsService {
     product: FlattenMaps<ProductType>,
     language: 'ka' | 'en',
   ): Record<string, unknown> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const transformed = { ...product } as Record<string, unknown>;
 
     // Transform name

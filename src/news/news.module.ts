@@ -15,4 +15,3 @@ import { NewsArticle, NewsArticleSchema } from './entities/news.entity';
   exports: [NewsService],
 })
 export class NewsModule {}
-

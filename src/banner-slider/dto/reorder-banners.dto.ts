@@ -13,4 +13,3 @@ export class ReorderBannersDto {
   @Type(() => CreateBannerDto)
   banners: CreateBannerDto[];
 }
-

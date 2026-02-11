@@ -25,6 +25,7 @@ import {
 import type { LocalizedText } from './types/localized-text.interface';
 import { TranslationHelperService } from '../translation/translationHelper.service';
 import { FrontRevalidateService } from '../revalidate/front-revalidate.service';
+import { FRONT_MENU_TAGS } from '../revalidate/front-cache-tags';
 
 @Injectable()
 export class CategoriesService {
@@ -129,7 +130,7 @@ export class CategoriesService {
       }
 
       const created = await this.brandModel.create(createBrandDto);
-      void this.frontRevalidate.revalidateTags(['brands']);
+      void this.frontRevalidate.revalidateTags(FRONT_MENU_TAGS);
       return created;
     } catch (error) {
       if (
@@ -168,7 +169,7 @@ export class CategoriesService {
         throw new NotFoundException(`Brand with ID ${id} not found`);
       }
 
-      void this.frontRevalidate.revalidateTags(['brands']);
+      void this.frontRevalidate.revalidateTags(FRONT_MENU_TAGS);
       return brand;
     } catch (error) {
       if (
@@ -198,7 +199,7 @@ export class CategoriesService {
         throw new NotFoundException(`Brand with ID ${id} not found`);
       }
 
-      void this.frontRevalidate.revalidateTags(['brands']);
+      void this.frontRevalidate.revalidateTags(FRONT_MENU_TAGS);
     } catch (error) {
       if (
         error instanceof NotFoundException ||

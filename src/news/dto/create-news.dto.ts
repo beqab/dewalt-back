@@ -38,4 +38,3 @@ export class CreateNewsDto {
   @IsNotEmpty()
   content: LocalizedTextDto;
 }
-
