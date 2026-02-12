@@ -22,7 +22,12 @@ import {
 import { NewsService } from './news.service';
 import { CreateNewsDto } from './dto/create-news.dto';
 import { UpdateNewsDto } from './dto/update-news.dto';
-import { PaginatedNewsResponseDto, NewsDto } from './dto/news-response.dto';
+import {
+  PaginatedNewsResponseDto,
+  PaginatedNewsPublicResponseDto,
+  NewsDto,
+  NewsPublicDto,
+} from './dto/news-response.dto';
 import { AdminAuthGuard } from '../guards/admin.guard';
 
 @ApiTags('news')
@@ -62,6 +67,38 @@ export class NewsController {
     return this.newsService.findAll(validPage, validLimit);
   }
 
+  @Get('public')
+  @ApiOperation({
+    summary:
+      'Get all news articles (public translated endpoint with pagination)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'News articles retrieved successfully',
+    type: PaginatedNewsPublicResponseDto,
+  })
+  findAllPublic(@Query('page') page?: string, @Query('limit') limit?: string) {
+    const pageNumber = page ? parseInt(page, 10) : 1;
+    const limitNumber = limit ? parseInt(limit, 10) : 10;
+
+    const validPage = isNaN(pageNumber) || pageNumber < 1 ? 1 : pageNumber;
+    const validLimit = isNaN(limitNumber) || limitNumber < 1 ? 10 : limitNumber;
+
+    return this.newsService.findAllPublic(validPage, validLimit);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Get a single news article by ID (public endpoint)',
@@ -78,6 +115,24 @@ export class NewsController {
   })
   findOne(@Param('id') id: string) {
     return this.newsService.findOne(id);
+  }
+
+  @Get('public/:id')
+  @ApiOperation({
+    summary: 'Get a single news article by ID (public translated endpoint)',
+  })
+  @ApiParam({ name: 'id', description: 'News article ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'News article retrieved successfully',
+    type: NewsPublicDto,
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'News article not found',
+  })
+  findOnePublic(@Param('id') id: string) {
+    return this.newsService.findOnePublic(id);
   }
 
   @Post()
