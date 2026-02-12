@@ -4,6 +4,7 @@
  */
 export const FRONT_MENU_TAGS: string[] = ['menu'];
 export const FRONT_BANNER_TAGS: string[] = ['banner-carousel'];
+export const FRONT_ADS_TAGS: string[] = ['ads'];
 
 export const FRONT_CACHE_TAGS = {
   /**
@@ -15,5 +16,8 @@ export const FRONT_CACHE_TAGS = {
   },
   bannerCarousel: {
     all: FRONT_BANNER_TAGS,
+  },
+  ads: {
+    all: FRONT_ADS_TAGS,
   },
 } as const;
