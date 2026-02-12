@@ -12,12 +12,15 @@ import {
 } from './entities/banner.entity';
 import { CreateBannerDto } from './dto/create-banner.dto';
 import { UpdateBannerDto } from './dto/update-banner.dto';
+import { FrontRevalidateService } from '../revalidate/front-revalidate.service';
+import { FRONT_BANNER_TAGS } from '../revalidate/front-cache-tags';
 
 @Injectable()
 export class BannerSliderService {
   constructor(
     @InjectModel(BannerSlider.name)
     private bannerSliderModel: Model<BannerSliderDocument>,
+    private frontRevalidate: FrontRevalidateService,
   ) {}
 
   private async getOrCreateBannerSlider(): Promise<BannerSliderDocument> {
@@ -65,6 +68,9 @@ export class BannerSliderService {
       bannerSlider.banners.push(newBanner as Banner);
 
       await bannerSlider.save();
+      void this.frontRevalidate.revalidateTags(
+        FRONT_BANNER_TAGS as unknown as string[],
+      );
       return bannerSlider;
     } catch (error) {
       throw new BadRequestException(error);
@@ -99,6 +105,9 @@ export class BannerSliderService {
       Object.assign(bannerSlider.banners[bannerIndex], updateBannerDto);
 
       await bannerSlider.save();
+      void this.frontRevalidate.revalidateTags(
+        FRONT_BANNER_TAGS as unknown as string[],
+      );
       return bannerSlider;
     } catch (error) {
       throw new BadRequestException(error);
@@ -127,6 +136,9 @@ export class BannerSliderService {
       }
 
       await bannerSlider.save();
+      void this.frontRevalidate.revalidateTags(
+        FRONT_BANNER_TAGS as unknown as string[],
+      );
       return bannerSlider;
     } catch (error) {
       throw new BadRequestException(error);
@@ -151,6 +163,9 @@ export class BannerSliderService {
       bannerSlider.banners = reorderedBanners as Banner[];
 
       await bannerSlider.save();
+      void this.frontRevalidate.revalidateTags(
+        FRONT_BANNER_TAGS as unknown as string[],
+      );
       return bannerSlider;
     } catch (error) {
       throw new BadRequestException(error);
