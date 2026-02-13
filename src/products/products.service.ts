@@ -16,6 +16,9 @@ import {
 import { ChildCategory } from '../categories/entities/child-category.entity';
 import { ProductSpec, ProductSpecDocument } from './entities';
 import { LocalizedText } from '../categories/entities';
+import { TranslationHelperService } from '../translation/translationHelper.service';
+import { FrontRevalidateService } from '../revalidate/front-revalidate.service';
+import { FRONT_PRODUCTS_TAGS } from '../revalidate/front-cache-tags';
 
 interface CategoryType extends Record<string, unknown> {
   _id: string;
@@ -37,7 +40,90 @@ export class ProductsService {
     @InjectModel(Category.name) private categoryModel: Model<Category>,
     @InjectModel(ChildCategory.name)
     private childCategoryModel: Model<ChildCategory>,
+    private translationHelper: TranslationHelperService,
+    private frontRevalidate: FrontRevalidateService,
   ) {}
+
+  async getHomepageBrandSliders(options?: {
+    brandLimit?: number;
+    productsLimit?: number;
+  }): Promise<
+    {
+      brand: {
+        _id: unknown;
+        name: string;
+        slug: string;
+        createdAt: Date;
+        updatedAt: Date;
+      };
+      products: (ProductDocument | Record<string, unknown>)[];
+    }[]
+  > {
+    try {
+      const brandLimit = options?.brandLimit ?? 3;
+      const productsLimit = options?.productsLimit ?? 10;
+
+      let lang: 'ka' | 'en' = 'ka';
+      try {
+        lang = this.translationHelper.currentLanguage;
+      } catch {
+        lang = 'ka';
+      }
+
+      const translateName = (
+        name: LocalizedText | null | undefined,
+      ): string => {
+        if (!name) return '';
+        if (lang === 'ka' && name.ka) return name.ka;
+        if (lang === 'en' && name.en) return name.en;
+        return name.en || name.ka || '';
+      };
+
+      const brands = await this.brandModel
+        .find()
+        .sort({ createdAt: -1 })
+        .limit(brandLimit)
+        .lean()
+        .exec();
+
+      const sliders = await Promise.all(
+        brands.map(async (brand) => {
+          const products = (await this.productModel
+            .find({ brandId: brand._id })
+            .populate('brandId', 'name slug')
+            .populate('categoryId', 'name slug')
+            .populate('childCategoryId', 'name slug')
+            .sort({ createdAt: -1 })
+            .limit(productsLimit)
+            .lean()
+            .exec()) as unknown as FlattenMaps<ProductType>[];
+
+          const transformedProducts = products.map((p) =>
+            this.transformProductByLanguage(p, lang),
+          );
+
+          return {
+            brand: {
+              _id: brand._id,
+              name: translateName(brand.name as LocalizedText),
+              slug: brand.slug,
+              createdAt: brand.createdAt,
+              updatedAt: brand.updatedAt,
+            },
+            products: transformedProducts as (
+              | ProductDocument
+              | Record<string, unknown>
+            )[],
+          };
+        }),
+      );
+
+      return sliders.filter(({ products }) => products.length > 0);
+    } catch (error) {
+      console.log(error, 'error');
+      throw new BadRequestException('Failed to fetch homepage brand sliders');
+    }
+  }
 
   /**
    * Resolve slug to ID for brand, category, or child category
@@ -210,7 +296,7 @@ export class ProductsService {
       // Transform data based on language if provided
 
       const transformedData = language
-        ? data.map((product: any) =>
+        ? (data as unknown as FlattenMaps<ProductType>[]).map((product) =>
             this.transformProductByLanguage(product, language),
           )
         : data;
@@ -247,7 +333,10 @@ export class ProductsService {
       }
 
       if (language) {
-        return this.transformProductByLanguage(product as any, language);
+        return this.transformProductByLanguage(
+          product as unknown as FlattenMaps<ProductType>,
+          language,
+        );
       }
       return product;
     } catch (error) {
@@ -506,7 +595,10 @@ export class ProductsService {
     }
 
     return products.map((product) =>
-      this.transformProductByLanguage(product as any, language),
+      this.transformProductByLanguage(
+        product as unknown as FlattenMaps<ProductType>,
+        language,
+      ),
     );
   }
 
@@ -564,7 +656,11 @@ export class ProductsService {
         );
       }
 
-      return await this.productModel.create(createProductDto);
+      const created = await this.productModel.create(createProductDto);
+      void this.frontRevalidate.revalidateTags(
+        FRONT_PRODUCTS_TAGS as unknown as string[],
+      );
+      return created;
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -655,6 +751,9 @@ export class ProductsService {
         .populate('childCategoryId', 'name slug')
         .exec();
 
+      void this.frontRevalidate.revalidateTags(
+        FRONT_PRODUCTS_TAGS as unknown as string[],
+      );
       return updatedProduct!;
     } catch (error) {
       if (
@@ -675,6 +774,9 @@ export class ProductsService {
       if (!product) {
         throw new NotFoundException(`Product with ID ${id} not found`);
       }
+      void this.frontRevalidate.revalidateTags(
+        FRONT_PRODUCTS_TAGS as unknown as string[],
+      );
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;

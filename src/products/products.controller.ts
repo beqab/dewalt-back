@@ -19,7 +19,11 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ProductsService } from './products.service';
-import { CreateProductDto, ProductResponseDto } from './dto';
+import {
+  CreateProductDto,
+  HomepageBrandSliderDto,
+  ProductResponseDto,
+} from './dto';
 import { AdminAuthGuard } from '../guards/admin.guard';
 import { ProductDocument } from './entities';
 
@@ -27,6 +31,43 @@ import { ProductDocument } from './entities';
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
+
+  @Get('homepage/brand-sliders')
+  @ApiOperation({
+    summary:
+      'Get homepage brand sliders (public, translated via x-custom-lang)',
+  })
+  @ApiQuery({
+    name: 'brandLimit',
+    required: false,
+    type: Number,
+    description: 'How many brands to include (default: 3)',
+  })
+  @ApiQuery({
+    name: 'productsLimit',
+    required: false,
+    type: Number,
+    description: 'How many products per brand (default: 10)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Homepage brand sliders retrieved successfully',
+    type: [HomepageBrandSliderDto],
+  })
+  getHomepageBrandSliders(
+    @Query('brandLimit') brandLimit?: string,
+    @Query('productsLimit') productsLimit?: string,
+  ) {
+    const brandLimitNum = brandLimit ? parseInt(String(brandLimit), 10) : 3;
+    const productsLimitNum = productsLimit
+      ? parseInt(String(productsLimit), 10)
+      : 10;
+
+    return this.productsService.getHomepageBrandSliders({
+      brandLimit: Number.isFinite(brandLimitNum) ? brandLimitNum : 3,
+      productsLimit: Number.isFinite(productsLimitNum) ? productsLimitNum : 10,
+    });
+  }
 
   @Get()
   @ApiOperation({ summary: 'Get all products (public endpoint)' })

@@ -6,6 +6,7 @@ export const FRONT_MENU_TAGS: string[] = ['menu'];
 export const FRONT_BANNER_TAGS: string[] = ['banner-carousel'];
 export const FRONT_ADS_TAGS: string[] = ['ads'];
 export const FRONT_NEWS_TAGS: string[] = ['news'];
+export const FRONT_PRODUCTS_TAGS: string[] = ['products'];
 
 export const FRONT_CACHE_TAGS = {
   /**
@@ -23,5 +24,8 @@ export const FRONT_CACHE_TAGS = {
   },
   news: {
     all: FRONT_NEWS_TAGS,
+  },
+  products: {
+    all: FRONT_PRODUCTS_TAGS,
   },
 } as const;
