@@ -18,6 +18,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { OrdersModule } from './orders/orders.module';
 import { RevalidateModule } from './revalidate/revalidate.module';
+import { FinaModule } from './fina/fina.module';
 
 @Module({
   imports: [
@@ -99,6 +100,7 @@ import { RevalidateModule } from './revalidate/revalidate.module';
     OrdersModule,
     TranslationModule,
     RevalidateModule,
+    FinaModule,
   ],
   controllers: [AppController],
   providers: [AppService],

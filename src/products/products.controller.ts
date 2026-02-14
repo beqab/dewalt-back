@@ -22,6 +22,7 @@ import { ProductsService } from './products.service';
 import {
   CreateProductDto,
   HomepageBrandSliderDto,
+  ProductPublicResponseDto,
   ProductResponseDto,
 } from './dto';
 import { AdminAuthGuard } from '../guards/admin.guard';
@@ -153,7 +154,7 @@ export class ProductsController {
   @ApiResponse({
     status: 200,
     description: 'Products retrieved successfully',
-    type: [ProductResponseDto],
+    type: [ProductPublicResponseDto],
   })
   findAll(
     @Query('page') page?: string,
@@ -169,7 +170,6 @@ export class ProductsController {
     @Query('maxPrice') maxPrice?: string,
     @Query('search') search?: string,
     @Query('sort') sort?: string,
-    @Query('language') language?: 'ka' | 'en',
   ) {
     const pageNum = page ? parseInt(String(page), 10) : 1;
     const limitNum = limit ? parseInt(String(limit), 10) : 10;
@@ -185,7 +185,6 @@ export class ProductsController {
       maxPrice?: number;
       search?: string;
       sort?: string;
-      language?: string;
     } = {};
 
     if (brandId) filters.brandId = String(brandId);
@@ -203,9 +202,8 @@ export class ProductsController {
     if (maxPrice) filters.maxPrice = parseFloat(String(maxPrice));
     if (search) filters.search = String(search);
     if (sort) filters.sort = String(sort);
-    if (language) filters.language = String(language);
 
-    return this.productsService.findAll(pageNum, limitNum, filters, language);
+    return this.productsService.findAll(pageNum, limitNum, filters);
   }
 
   @Get(':id')

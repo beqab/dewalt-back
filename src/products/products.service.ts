@@ -174,7 +174,6 @@ export class ProductsService {
       search?: string;
       sort?: string;
     },
-    language?: 'ka' | 'en',
   ): Promise<{
     data: (ProductDocument | Record<string, unknown>)[];
     total: number;
@@ -183,6 +182,13 @@ export class ProductsService {
     totalPages: number;
   }> {
     try {
+      let lang: 'ka' | 'en' = 'ka';
+      try {
+        lang = this.translationHelper.currentLanguage;
+      } catch {
+        lang = 'ka';
+      }
+
       const skip = (page - 1) * limit;
       const query: FilterQuery<ProductDocument> = {};
 
@@ -295,11 +301,9 @@ export class ProductsService {
 
       // Transform data based on language if provided
 
-      const transformedData = language
-        ? (data as unknown as FlattenMaps<ProductType>[]).map((product) =>
-            this.transformProductByLanguage(product, language),
-          )
-        : data;
+      const transformedData = (
+        data as unknown as FlattenMaps<ProductType>[]
+      ).map((product) => this.transformProductByLanguage(product, lang));
 
       return {
         data: transformedData as (ProductDocument | Record<string, unknown>)[],
