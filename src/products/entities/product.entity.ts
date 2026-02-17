@@ -20,6 +20,12 @@ export class Product {
   @Prop({ type: String, required: true, unique: true })
   code: string; // Product code (e.g., "DEW-86511 55 31321321641684 SRG-982")
 
+  @Prop({ type: Number, required: false, index: true })
+  finaId?: number; // External FINA product id
+
+  @Prop({ type: String, required: false, index: true })
+  finaCode?: string; // External FINA product code
+
   @Prop({
     type: {
       ka: { type: String, required: true },

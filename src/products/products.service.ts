@@ -174,6 +174,7 @@ export class ProductsService {
       search?: string;
       sort?: string;
     },
+    options?: { translate?: boolean },
   ): Promise<{
     data: (ProductDocument | Record<string, unknown>)[];
     total: number;
@@ -182,13 +183,15 @@ export class ProductsService {
     totalPages: number;
   }> {
     try {
+      const shouldTranslate = options?.translate !== false;
       let lang: 'ka' | 'en' = 'ka';
-      try {
-        lang = this.translationHelper.currentLanguage;
-      } catch {
-        lang = 'ka';
+      if (shouldTranslate) {
+        try {
+          lang = this.translationHelper.currentLanguage;
+        } catch {
+          lang = 'ka';
+        }
       }
-
       const skip = (page - 1) * limit;
       const query: FilterQuery<ProductDocument> = {};
 
@@ -299,14 +302,14 @@ export class ProductsService {
         this.productModel.countDocuments(query).exec(),
       ]);
 
-      // Transform data based on language if provided
-
-      const transformedData = (
-        data as unknown as FlattenMaps<ProductType>[]
-      ).map((product) => this.transformProductByLanguage(product, lang));
+      const resultData = shouldTranslate
+        ? ((data as unknown as FlattenMaps<ProductType>[]).map((product) =>
+            this.transformProductByLanguage(product, lang),
+          ) as (ProductDocument | Record<string, unknown>)[])
+        : (data as (ProductDocument | Record<string, unknown>)[]);
 
       return {
-        data: transformedData as (ProductDocument | Record<string, unknown>)[],
+        data: resultData,
         total,
         page,
         limit,

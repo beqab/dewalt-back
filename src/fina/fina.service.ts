@@ -3,6 +3,12 @@ import { ConfigService } from '@nestjs/config';
 
 type FinaAuthMode = 'basic' | 'query' | 'token' | 'none';
 
+export type FinaProductListItem = {
+  id: number;
+  code?: string;
+  name?: string;
+};
+
 @Injectable()
 export class FinaService {
   constructor(private readonly configService: ConfigService) {}
@@ -228,6 +234,37 @@ export class FinaService {
       endpoint,
       method: 'GET',
     });
+  }
+
+  /**
+   * Normalized list for UIs: [{ id, code?, name? }]
+   */
+  async getAllProductsList(): Promise<FinaProductListItem[]> {
+    const raw = (await this.getAllProducts()) as {
+      products: Record<string, unknown>[];
+    };
+    console.log('raw11111', raw);
+    if (!Array.isArray(raw?.products)) {
+      throw new BadRequestException({
+        message: 'Unexpected FINA products response shape (expected array)',
+      });
+    }
+
+    console.log('raw', raw);
+
+    return raw.products
+      .filter((x): x is Record<string, unknown> =>
+        Boolean(x && typeof x === 'object'),
+      )
+      .map((it) => {
+        const id = Number(it.id);
+        const codeRaw = it.code as string;
+
+        const nameRaw = it.name as string;
+
+        return { id, code: codeRaw, name: nameRaw };
+      })
+      .filter((x) => Number.isFinite(x.id));
   }
 
   /**

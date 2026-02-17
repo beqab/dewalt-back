@@ -206,6 +206,71 @@ export class ProductsController {
     return this.productsService.findAll(pageNum, limitNum, filters);
   }
 
+  @Get('admin')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get all products (admin, no translation)',
+    description:
+      'Returns full localized objects (no x-custom-lang translation), suitable for admin edit forms.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Products retrieved successfully (admin)',
+    type: [ProductResponseDto],
+  })
+  findAllAdmin(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('brandId') brandId?: string,
+    @Query('brandSlug') brandSlug?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('categorySlug') categorySlug?: string,
+    @Query('childCategoryId') childCategoryId?: string,
+    @Query('childCategorySlug') childCategorySlug?: string,
+    @Query('inStock') inStock?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('search') search?: string,
+    @Query('sort') sort?: string,
+  ) {
+    const pageNum = page ? parseInt(String(page), 10) : 1;
+    const limitNum = limit ? parseInt(String(limit), 10) : 10;
+    const filters: {
+      brandId?: string;
+      brandSlug?: string;
+      categoryId?: string;
+      categorySlug?: string;
+      childCategoryId?: string;
+      childCategorySlug?: string;
+      inStock?: boolean;
+      minPrice?: number;
+      maxPrice?: number;
+      search?: string;
+      sort?: string;
+    } = {};
+
+    if (brandId) filters.brandId = String(brandId);
+    if (brandSlug) filters.brandSlug = String(brandSlug);
+    if (categoryId) filters.categoryId = String(categoryId);
+    if (categorySlug) filters.categorySlug = String(categorySlug);
+    if (childCategoryId) filters.childCategoryId = String(childCategoryId);
+    if (childCategorySlug)
+      filters.childCategorySlug = String(childCategorySlug);
+    if (inStock !== undefined) {
+      const inStockValue = String(inStock);
+      filters.inStock = inStockValue === 'true' || inStockValue === '1';
+    }
+    if (minPrice) filters.minPrice = parseFloat(String(minPrice));
+    if (maxPrice) filters.maxPrice = parseFloat(String(maxPrice));
+    if (search) filters.search = String(search);
+    if (sort) filters.sort = String(sort);
+
+    return this.productsService.findAll(pageNum, limitNum, filters, {
+      translate: false,
+    });
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get product by ID (public endpoint)' })
   @ApiParam({ name: 'id', description: 'Product ID' })

@@ -120,12 +120,12 @@ export class AdminService {
           username: admin.username,
         },
         {
-          expiresIn: '30m',
+          expiresIn: '59m',
         },
       );
 
       // Calculate expiration timestamp for access token
-      const tokenExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+      const tokenExpiresAt = new Date(Date.now() + 59 * 60 * 1000);
 
       // Get admin without password for response
       const result = await this.adminModel
@@ -217,7 +217,7 @@ export class AdminService {
           username: admin.username,
         },
         {
-          expiresIn: '30m',
+          expiresIn: '59m',
         },
       );
 
@@ -248,7 +248,7 @@ export class AdminService {
       return {
         message: 'Token refreshed successfully',
         token: newToken,
-        tokenExpiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        tokenExpiresAt: new Date(Date.now() + 59 * 60 * 1000),
         refreshToken: newRefreshToken,
         admin: result,
       };

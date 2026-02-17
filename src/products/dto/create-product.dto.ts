@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsBoolean,
   IsOptional,
+  IsInt,
   IsMongoId,
   IsArray,
   Min,
@@ -33,6 +34,24 @@ export class CreateProductDto {
   @IsNotEmpty()
   @IsString()
   code: string;
+
+  @ApiProperty({
+    description: 'FINA product id (optional)',
+    example: 12345,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  finaId?: number;
+
+  @ApiProperty({
+    description: 'FINA product code (optional)',
+    example: 'FINA-ABC-001',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  finaCode?: string;
 
   @ApiProperty({
     description: 'Product description (localized)',

@@ -26,6 +26,20 @@ export class ProductResponseDto {
   code: string;
 
   @ApiProperty({
+    description: 'FINA product id (optional)',
+    example: 12345,
+    required: false,
+  })
+  finaId?: number;
+
+  @ApiProperty({
+    description: 'FINA product code (optional)',
+    example: 'FINA-ABC-001',
+    required: false,
+  })
+  finaCode?: string;
+
+  @ApiProperty({
     description: 'Product description (localized)',
     example: {
       ka: 'სახეხი და საპრიალებელი ხელსაწყოები',

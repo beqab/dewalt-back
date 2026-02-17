@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FinaService } from './fina.service';
 import { GetProductsRestArrayDto } from './dto/get-products-rest-array.dto';
+import { FinaProductListItemDto } from './dto/fina-product-list-item.dto';
 
 @ApiTags('fina')
 @Controller('fina')
@@ -26,6 +27,19 @@ export class FinaController {
   })
   getAllProducts() {
     return this.finaService.getAllProducts();
+  }
+
+  @Get('products/list')
+  @ApiOperation({
+    summary: 'Get normalized FINA products list (for admin pickers)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'FINA products list: [{ id, code?, name? }]',
+    type: [FinaProductListItemDto],
+  })
+  getProductsList(): Promise<FinaProductListItemDto[]> {
+    return this.finaService.getAllProductsList();
   }
 
   @Get('products/rest')

@@ -158,6 +158,8 @@ export class AdminController {
     let refreshToken = (req.cookies as { refresh_token?: string })
       ?.refresh_token;
 
+    console.log(refreshToken, 'refreshToken');
+
     // If not in cookies, try to parse from Cookie header manually
     // This handles cases where cookies are forwarded manually from server-side requests
     if (!refreshToken && req.headers.cookie) {
