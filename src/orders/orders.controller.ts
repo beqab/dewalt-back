@@ -6,10 +6,17 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  UseGuards,
   Query,
   Res,
 } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -17,6 +24,9 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { PaymentCallbackDto } from './dto/payment-callback.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { Order, OrderStatus } from './entities/order.entity';
+import { UserAuthGuard } from '../guards/user.guard';
+import { CurrentUser } from '../decorators/getCurrentUser';
+import type { CurrentUserType } from '../decorators/getCurrentUser';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -94,6 +104,27 @@ export class OrdersController {
       limit: limit ? Number(limit) : undefined,
       status,
       userId,
+    });
+  }
+
+  @Get('my')
+  @UseGuards(UserAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get current user's orders" })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'status', required: false, enum: OrderStatus })
+  myOrders(
+    @CurrentUser() user: CurrentUserType,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: OrderStatus,
+  ) {
+    return this.ordersService.findMyOrders({
+      userId: user.id,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      status,
     });
   }
 

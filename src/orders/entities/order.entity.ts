@@ -39,6 +39,9 @@ export const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 
 @Schema({ timestamps: true })
 export class Order {
+  @Prop({ type: String, required: true, unique: true })
+  uuid: string;
+
   @Prop({ type: String, required: true })
   name: string;
 

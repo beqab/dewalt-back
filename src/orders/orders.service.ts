@@ -15,6 +15,9 @@ import {
   OrderStatus,
 } from './entities/order.entity';
 import { Product, ProductDocument } from '../products/entities/product.entity';
+import { TranslationHelperService } from '../translation/translationHelper.service';
+
+type LocalizedText = { ka: string; en: string };
 
 const DELIVERY_PRICES: Record<DeliveryType, number> = {
   [DeliveryType.Tbilisi]: 5,
@@ -43,7 +46,32 @@ export class OrdersService {
   constructor(
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+    private readonly translationHelper: TranslationHelperService,
   ) {}
+
+  private buildOrderCode(): string {
+    const date = new Date();
+    const y = date.getFullYear();
+    const m = `${date.getMonth() + 1}`.padStart(2, '0');
+    const d = `${date.getDate()}`.padStart(2, '0');
+    const randomPart = crypto
+      .randomBytes(3)
+      .toString('base64')
+      .replace(/[^A-Za-z0-9]/g, '')
+      .slice(0, 6)
+      .toUpperCase();
+    return `ORD-${y}${m}${d}-${randomPart}`;
+  }
+
+  private async generateUniqueOrderCode(): Promise<string> {
+    while (true) {
+      const code = this.buildOrderCode();
+      const exists = await this.orderModel.exists({ uuid: code });
+      if (!exists) {
+        return code;
+      }
+    }
+  }
 
   async create(createOrderDto: CreateOrderDto): Promise<OrderDocument> {
     const { items, deliveryType } = createOrderDto;
@@ -105,7 +133,10 @@ export class OrdersService {
     const deliveryPrice = DELIVERY_PRICES[deliveryType] ?? 0;
     const total = subtotal + deliveryPrice;
 
+    const orderCode = await this.generateUniqueOrderCode();
+
     const order = new this.orderModel({
+      uuid: orderCode,
       name: createOrderDto.name,
       surname: createOrderDto.surname,
       personalId: createOrderDto.personalId,
@@ -144,7 +175,7 @@ export class OrdersService {
       response_url: `${process.env.API_URL}orders/return?locale=${locale}`,
       server_callback_url: `${process.env.API_URL}orders/callback`,
     };
-    const secret_key = 'test';
+    const secret_key = process.env.FLITT_SECRET_KEY;
 
     if (!secret_key) {
       throw new BadRequestException('FLITT_SECRET_KEY is not configured');
@@ -230,17 +261,22 @@ export class OrdersService {
     }
   }
 
-  async checkOrderStatus(orderId: string): Promise<{ status: OrderStatus }> {
-    if (!Types.ObjectId.isValid(orderId)) {
-      throw new BadRequestException('Invalid order ID format');
-    }
+  async checkOrderStatus(
+    orderIdOrUuid: string,
+  ): Promise<{ status: OrderStatus; order: OrderDocument }> {
+    let order: OrderDocument | null = null;
 
-    const order = await this.orderModel.findById(orderId).exec();
+    if (Types.ObjectId.isValid(orderIdOrUuid) && orderIdOrUuid.length === 24) {
+      order = await this.orderModel.findById(orderIdOrUuid).exec();
+    }
+    if (!order) {
+      order = await this.orderModel.findOne({ uuid: orderIdOrUuid }).exec();
+    }
     if (!order) {
       throw new NotFoundException('Order not found');
     }
 
-    return { status: order.status };
+    return { status: order.status, order };
   }
 
   async findAll(query: {
@@ -282,6 +318,92 @@ export class OrdersService {
       limit: Number(limit),
       pages: Math.ceil(total / limit),
     };
+  }
+
+  async findMyOrders(query: {
+    userId: string;
+    page?: number;
+    limit?: number;
+    status?: OrderStatus;
+  }): Promise<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+    pages: number;
+  }> {
+    try {
+      const { userId, page = 1, limit = 10, status } = query;
+
+      if (!Types.ObjectId.isValid(userId)) {
+        throw new BadRequestException('Invalid user ID format');
+      }
+
+      const filter: Record<string, unknown> = {
+        userId: new Types.ObjectId(userId),
+      };
+      if (status) {
+        filter.status = status;
+      }
+
+      const skip = (page - 1) * limit;
+      const total = await this.orderModel.countDocuments(filter);
+
+      let lang: 'ka' | 'en' = 'ka';
+      try {
+        lang = this.translationHelper.currentLanguage;
+      } catch {
+        lang = 'ka';
+      }
+
+      const orders = await this.orderModel
+        .find(filter)
+        .populate({
+          path: 'items.productId',
+          select: 'name code image slug',
+        })
+        .lean()
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 })
+        .exec();
+
+      /* eslint-disable */
+      const translatedOrders = (orders ?? []).map((order: any) => ({
+        ...order,
+        items: (order.items ?? []).map((item: any) => {
+          const p = item.productId;
+          if (!p || typeof p === 'string') return item;
+
+          const nameValue = p.name as LocalizedText | string | undefined;
+          const translatedName =
+            typeof nameValue === 'string' ? nameValue : nameValue?.[lang];
+
+          return {
+            ...item,
+            productId: {
+              _id: p._id,
+              name: translatedName ?? '',
+              code: p.code,
+              image: p.image,
+              slug: p.slug,
+            },
+          };
+        }),
+      }));
+      /* eslint-enable */
+
+      return {
+        data: translatedOrders,
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        pages: Math.ceil(total / limit),
+      };
+    } catch (error) {
+      console.log(error);
+      throw new BadRequestException(error);
+    }
   }
 
   async updateStatus(updateOrderDto: UpdateOrderDto): Promise<OrderDocument> {
