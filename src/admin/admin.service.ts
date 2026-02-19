@@ -12,6 +12,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { LoginAdminDto } from './dto/login-admin.dto';
 import { ConfigService } from '@nestjs/config';
+import { User, UserDocument } from '../user/entities/user.entity';
 
 export type AdminResponse = Omit<Admin, 'password'> & { _id?: any };
 
@@ -19,6 +20,7 @@ export type AdminResponse = Omit<Admin, 'password'> & { _id?: any };
 export class AdminService {
   constructor(
     @InjectModel(Admin.name) private adminModel: Model<AdminDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {}
@@ -44,6 +46,72 @@ export class AdminService {
 
   async findByEmail(email: string): Promise<AdminDocument | null> {
     return this.adminModel.findOne({ email }).exec();
+  }
+
+  async findAllUsers(args?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+  }): Promise<{
+    data: {
+      id: string;
+      name: string;
+      email: string;
+      isVerified: boolean;
+      createdAt: Date;
+      updatedAt: Date;
+    }[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    const page = Math.max(1, Number(args?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(args?.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const query: Record<string, unknown> = {};
+    if (args?.search && args.search.trim().length > 0) {
+      const escaped = args.search
+        .trim()
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .toLowerCase();
+      query.email = { $regex: escaped, $options: 'i' };
+    }
+
+    const select =
+      '-password -refreshTokens -passwordResetToken -passwordResetExpires -emailVerificationToken -emailVerificationExpires';
+
+    const [data, total] = await Promise.all([
+      this.userModel
+        .find(query)
+        .select(select)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.userModel.countDocuments(query).exec(),
+    ]);
+
+    const mapped = (data || []).map((u) => ({
+      id: String((u as { _id: unknown })._id),
+      name: [u.name, (u as { surname?: string }).surname]
+        .filter(Boolean)
+        .join(' '),
+      email: u.email,
+      isVerified: Boolean((u as { emailVerified?: boolean }).emailVerified),
+      createdAt: (u as { createdAt: Date }).createdAt,
+      updatedAt: (u as { updatedAt: Date }).updatedAt,
+    }));
+
+    return {
+      data: mapped,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async createTestAdmin(createAdminDto: CreateAdminDto) {

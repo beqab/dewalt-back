@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   Res,
   Req,
+  Query,
 } from '@nestjs/common';
 import type { Response, Request } from 'express';
 import {
@@ -19,6 +20,7 @@ import {
   ApiResponse,
   ApiParam,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 import { BadRequestException } from '@nestjs/common';
 import { AdminService } from './admin.service';
@@ -35,6 +37,50 @@ import { CurrentAdminInterceptor } from '../interceptors/current-admin.intercept
 @Controller('admin')
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
+
+  @Get('users')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Get all users (paginated, admin only)',
+    description:
+      'Supports pagination and email search via `search` query param.',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Items per page (default: 10)',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Search by email (contains, case-insensitive)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Users list retrieved successfully',
+  })
+  findAllUsers(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const pageNum = page ? parseInt(String(page), 10) : 1;
+    const limitNum = limit ? parseInt(String(limit), 10) : 10;
+    return this.adminService.findAllUsers({
+      page: Number.isFinite(pageNum) ? pageNum : 1,
+      limit: Number.isFinite(limitNum) ? limitNum : 10,
+      search: search ? String(search) : undefined,
+    });
+  }
 
   @Get()
   @UseGuards(AdminAuthGuard)
