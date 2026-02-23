@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { SaveDocProductOutDto } from './dto/save-doc-product-out.dto';
 
 type FinaAuthMode = 'basic' | 'query' | 'token' | 'none';
 
@@ -8,6 +9,8 @@ export type FinaProductListItem = {
   code?: string;
   name?: string;
 };
+
+export type FinaSaveDocProductOutResponse = { id: number; ex?: string | null };
 
 @Injectable()
 export class FinaService {
@@ -262,7 +265,7 @@ export class FinaService {
 
         const nameRaw = it.name as string;
 
-        return { id, code: codeRaw, name: nameRaw };
+        return { id, code: codeRaw, name: nameRaw, ...it };
       })
       .filter((x) => Number.isFinite(x.id));
   }
@@ -287,6 +290,92 @@ export class FinaService {
       endpoint: '/api/operation/getProductsRest',
       method: 'GET',
     });
+  }
+
+  /**
+   * FINA docs: GET api/operation/getPriceTypes
+   */
+  async getPriceTypes(): Promise<unknown> {
+    return await this.requestJson({
+      endpoint: '/api/operation/getPriceTypes',
+      method: 'GET',
+    });
+  }
+
+  /**
+   * FINA docs: GET api/operation/getUsers
+   */
+  async getUsers(): Promise<unknown> {
+    return await this.requestJson({
+      endpoint: '/api/operation/getUsers',
+      method: 'GET',
+    });
+  }
+
+  /**
+   * FINA docs: GET api/operation/getCustomers
+   */
+  async getCustomers(): Promise<unknown> {
+    return await this.requestJson({
+      endpoint: '/api/operation/getCustomers',
+      method: 'GET',
+    });
+  }
+
+  /**
+   * FINA docs: POST api/operation/saveDocProductOut
+   * Accepts reduced payload and fills missing fields with defaults.
+   */
+  async saveDocProductOut(
+    input: SaveDocProductOutDto,
+  ): Promise<FinaSaveDocProductOutResponse> {
+    try {
+      const toNumber = (value: unknown, fallback: number) => {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (typeof value === 'string') {
+          const n = Number(value);
+          if (Number.isFinite(n)) return n;
+        }
+        return fallback;
+      };
+
+      const toInt = (value: unknown, fallback: number) =>
+        Math.trunc(toNumber(value, fallback));
+
+      const body = {
+        id: 0,
+        date: input.date,
+        purpose: input.purpose || 'ონლაინ გაყიდვა',
+        amount: input.amount,
+        currency: input.currency || 'GEL',
+        rate: input.rate || 1,
+        store: input.store || 1,
+        user: input.user || 3,
+        customer: input.customer || 0,
+        is_vat: input.is_vat,
+        vat: toNumber(input.vat, 1),
+        make_entry: input.make_entry,
+        pay_type: input.pay_type || 3,
+        price_type: toInt(input.price_type, 3),
+        w_type: toInt(input.w_type, 3),
+        t_type: toInt(input.t_type, 7),
+        t_payer: toInt(input.t_payer, 1),
+        products: input.products,
+      };
+
+      console.log(input, 'body+++');
+      const response = await this.requestJson<FinaSaveDocProductOutResponse>({
+        endpoint: '/api/operation/saveDocProductOut',
+        method: 'POST',
+        body,
+      });
+
+      console.log(response, 'response+++');
+      return response;
+    } catch (error) {
+      console.log(error, 'error+++');
+      throw error;
+    }
   }
 
   /**

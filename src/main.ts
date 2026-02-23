@@ -55,7 +55,8 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document, {
+  // NOTE: keep /api/* available for real endpoints (FINA proxy routes).
+  SwaggerModule.setup('api-docs', app, document, {
     swaggerOptions: {
       persistAuthorization: true,
     },
@@ -63,7 +64,7 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 3000);
   console.log(`Application is running on: ${await app.getUrl()}`);
-  console.log(`Swagger documentation: ${await app.getUrl()}/api`);
+  console.log(`Swagger documentation: ${await app.getUrl()}/api-docs`);
 }
 bootstrap().catch((error) => {
   console.error(error);

@@ -48,6 +48,9 @@ export class Order {
   @Prop({ type: String, required: true })
   surname: string;
 
+  @Prop({ type: String, required: false })
+  email: string;
+
   @Prop({ type: String, required: true })
   personalId: string;
 

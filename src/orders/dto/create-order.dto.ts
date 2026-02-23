@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   ArrayMinSize,
   IsArray,
+  IsEmail,
   IsEnum,
   IsInt,
   IsMongoId,
@@ -40,14 +41,18 @@ export class CreateOrderDto {
   @IsString()
   surname: string;
 
+  @ApiProperty({ example: 'john.doe@example.com' })
+  @IsOptional()
+  email: string;
+
   @ApiProperty({ example: '01017012345' })
   @IsNotEmpty()
   @Matches(/^\d{11}$/, { message: 'Personal ID must be 11 digits' })
   personalId: string;
 
-  @ApiProperty({ example: '+995577955582' })
+  @ApiProperty({ example: '577955582' })
   @IsNotEmpty()
-  @IsString()
+  @Matches(/^\d{9,}$/, { message: 'Phone number must be at least 9 digits' })
   phone: string;
 
   @ApiProperty({ example: 'Tbilisi, Ksani st. 36' })

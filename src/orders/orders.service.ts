@@ -139,6 +139,7 @@ export class OrdersService {
       uuid: orderCode,
       name: createOrderDto.name,
       surname: createOrderDto.surname,
+      email: createOrderDto.email || undefined,
       personalId: createOrderDto.personalId,
       phone: createOrderDto.phone,
       address: createOrderDto.address,
@@ -357,7 +358,10 @@ export class OrdersService {
       }
 
       const orders = await this.orderModel
-        .find(filter)
+        .find({
+          ...filter,
+          status: { $nin: [OrderStatus.Failed, OrderStatus.Pending] }, // Exclude both enum and string status values for resilience
+        })
         .populate({
           path: 'items.productId',
           select: 'name code image slug',
