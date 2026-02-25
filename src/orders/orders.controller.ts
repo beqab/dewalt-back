@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   UseGuards,
   Query,
@@ -27,6 +28,7 @@ import { Order, OrderStatus } from './entities/order.entity';
 import { UserAuthGuard } from '../guards/user.guard';
 import { CurrentUser } from '../decorators/getCurrentUser';
 import type { CurrentUserType } from '../decorators/getCurrentUser';
+import { AdminAuthGuard } from '../guards/admin.guard';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -107,6 +109,57 @@ export class OrdersController {
     });
   }
 
+  @Get('admin')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get orders list (admin)' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'status', required: false, enum: OrderStatus })
+  @ApiQuery({ name: 'id', required: false, type: String })
+  @ApiQuery({ name: 'uuid', required: false, type: String })
+  @ApiQuery({ name: 'finaId', required: false, type: String })
+  @ApiQuery({ name: 'finalId', required: false, type: String })
+  @ApiQuery({ name: 'email', required: false, type: String })
+  @ApiQuery({ name: 'userEmail', required: false, type: String })
+  findAllAdmin(
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('status') status?: OrderStatus,
+    @Query('id') id?: string,
+    @Query('uuid') uuid?: string,
+    @Query('finaId') finaId?: string,
+    @Query('finalId') finalId?: string,
+    @Query('email') email?: string,
+    @Query('userEmail') userEmail?: string,
+  ) {
+    return this.ordersService.findAll({
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      status,
+      id: id ? String(id) : undefined,
+      uuid: uuid || finaId || finalId,
+      email: (userEmail || email) ?? undefined,
+    });
+  }
+
+  @Get('admin/:id')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get order details (admin)' })
+  findOneAdmin(@Param('id') id: string) {
+    return this.ordersService.findOneAdmin(id);
+  }
+
+  @Post('admin/status')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update order status (admin)' })
+  updateStatusAdmin(@Body() updateOrderDto: UpdateOrderDto): Promise<Order> {
+    return this.ordersService.updateStatus(updateOrderDto);
+  }
+
   @Get('my')
   @UseGuards(UserAuthGuard)
   @ApiBearerAuth()
@@ -138,6 +191,8 @@ export class OrdersController {
   @Post('status')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update order status' })
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
   updateStatus(@Body() updateOrderDto: UpdateOrderDto): Promise<Order> {
     return this.ordersService.updateStatus(updateOrderDto);
   }

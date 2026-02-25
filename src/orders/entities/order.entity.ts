@@ -5,10 +5,11 @@ import { User } from '../../user/entities/user.entity';
 
 export enum OrderStatus {
   Pending = 'pending',
-  Failed = 'failed',
-  Paid = 'paid',
   Shipped = 'shipped',
   Delivered = 'delivered',
+  Cancelled = 'cancelled',
+  Failed = 'failed',
+  Paid = 'paid',
 }
 
 export enum DeliveryType {

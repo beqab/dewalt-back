@@ -16,6 +16,7 @@ import {
 } from './entities/order.entity';
 import { Product, ProductDocument } from '../products/entities/product.entity';
 import { TranslationHelperService } from '../translation/translationHelper.service';
+import { User, UserDocument } from '../user/entities/user.entity';
 
 type LocalizedText = { ka: string; en: string };
 
@@ -46,8 +47,19 @@ export class OrdersService {
   constructor(
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+    @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly translationHelper: TranslationHelperService,
   ) {}
+
+  private escapeRegex(input: string): string {
+    return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  private buildCaseInsensitiveContains(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    return { $regex: this.escapeRegex(trimmed), $options: 'i' } as const;
+  }
 
   private buildOrderCode(): string {
     const date = new Date();
@@ -280,26 +292,111 @@ export class OrdersService {
     return { status: order.status, order };
   }
 
+  async findOneAdmin(orderId: string) {
+    if (!Types.ObjectId.isValid(orderId)) {
+      throw new BadRequestException('Invalid order id format');
+    }
+
+    const order = await this.orderModel
+      .findById(orderId)
+      .populate('userId', 'name surname email')
+      .populate({
+        path: 'items.productId',
+        select:
+          'name code image images slug price originalPrice discount inStock quantity rating reviewCount finaId finaCode specs',
+      })
+      .exec();
+
+    if (!order) {
+      throw new NotFoundException('Order not found');
+    }
+
+    let ordersCountForUser = 0;
+    const userIdRaw = (order.userId as unknown as { _id?: unknown })?._id;
+    const userIdValue =
+      userIdRaw instanceof Types.ObjectId
+        ? userIdRaw.toHexString()
+        : typeof userIdRaw === 'string'
+          ? userIdRaw
+          : null;
+    if (userIdValue && Types.ObjectId.isValid(userIdValue)) {
+      ordersCountForUser = await this.orderModel.countDocuments({
+        userId: new Types.ObjectId(userIdValue),
+      });
+    } else if (order.email) {
+      ordersCountForUser = await this.orderModel.countDocuments({
+        email: this.buildCaseInsensitiveContains(order.email) ?? order.email,
+      });
+    }
+
+    return {
+      order,
+      ordersCountForUser,
+    };
+  }
+
   async findAll(query: {
     page?: number;
     limit?: number;
     status?: OrderStatus;
     userId?: string;
+    id?: string;
+    uuid?: string;
+    email?: string;
   }): Promise<{
     data: OrderDocument[];
     total: number;
     page: number;
     limit: number;
     pages: number;
+    totalPages: number;
   }> {
-    const { page = 1, limit = 10, status, userId } = query;
+    const { page = 1, limit = 10, status, userId, id, uuid, email } = query;
 
     const filter: Record<string, unknown> = {};
     if (status) {
       filter.status = status;
+    } else {
+      filter.status = {
+        $nin: [OrderStatus.Pending, OrderStatus.Failed],
+      };
     }
     if (userId) {
       filter.userId = userId;
+    }
+    if (id) {
+      const trimmed = String(id).trim();
+      if (!Types.ObjectId.isValid(trimmed)) {
+        throw new BadRequestException('Invalid order id format');
+      }
+      filter._id = new Types.ObjectId(trimmed);
+    }
+
+    const uuidFilter = uuid
+      ? this.buildCaseInsensitiveContains(String(uuid))
+      : undefined;
+    const emailFilter = email
+      ? this.buildCaseInsensitiveContains(String(email))
+      : undefined;
+
+    if (uuidFilter) {
+      filter.uuid = uuidFilter;
+    }
+
+    if (emailFilter) {
+      const userIds = await this.userModel
+        .find({ email: emailFilter })
+        .select('_id')
+        .lean()
+        .exec();
+      const ids = (userIds || []).map((u) =>
+        String((u as { _id: unknown })._id),
+      );
+
+      filter.$or = [
+        { email: emailFilter },
+        ...(ids.length > 0 ? [{ userId: { $in: ids } }] : []),
+      ];
     }
 
     const skip = (page - 1) * limit;
@@ -312,12 +409,14 @@ export class OrdersService {
       .sort({ createdAt: -1 })
       .exec();
 
+    const totalPages = Math.ceil(total / limit);
     return {
       data: orders,
       total,
       page: Number(page),
       limit: Number(limit),
-      pages: Math.ceil(total / limit),
+      pages: totalPages,
+      totalPages,
     };
   }
 
