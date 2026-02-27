@@ -31,7 +31,7 @@ export class CreateProductDto {
     description: 'Product code (unique identifier)',
     example: 'DEW-86511 55 31321321641684 SRG-982',
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   code: string;
 

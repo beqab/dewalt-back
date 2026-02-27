@@ -182,6 +182,14 @@ export class ProductsService {
     limit: number;
     totalPages: number;
   }> {
+    console.log(
+      filters?.minPrice,
+      'minPrice',
+      filters?.maxPrice,
+      'maxPrice',
+      filters?.inStock,
+      'inStock',
+    );
     try {
       const shouldTranslate = options?.translate !== false;
       let lang: 'ka' | 'en' = 'ka';
@@ -261,20 +269,42 @@ export class ProductsService {
       }
 
       if (filters?.minPrice !== undefined || filters?.maxPrice !== undefined) {
-        query.price = { $gte: filters.minPrice, $lte: filters.maxPrice };
+        query.price = {
+          $gte: filters.minPrice || 0,
+          $lte: filters.maxPrice || 9999999999,
+        };
       }
 
       if (filters?.search) {
+        const rawSearch = String(filters.search).trim();
+        const hasSearch = rawSearch.length > 0;
+
         // Escape special regex characters in search string
-        const escapedSearch = filters.search.replace(
-          /[.*+?^${}()|[\]\\]/g,
-          '\\$&',
-        );
-        query.$or = [
-          { 'name.ka': { $regex: escapedSearch, $options: 'i' } },
-          { 'name.en': { $regex: escapedSearch, $options: 'i' } },
-          { code: { $regex: escapedSearch, $options: 'i' } },
-        ];
+        const escapedSearch = rawSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        if (hasSearch) {
+          const or: Record<string, unknown>[] = [
+            { 'name.ka': { $regex: escapedSearch, $options: 'i' } },
+            { 'name.en': { $regex: escapedSearch, $options: 'i' } },
+            { code: { $regex: escapedSearch, $options: 'i' } },
+            { finaCode: { $regex: escapedSearch, $options: 'i' } },
+          ];
+
+          // finaId is a Number in schema -> only allow numeric match (no regex)
+          if (/^\d+$/.test(rawSearch)) {
+            const finaIdNum = Number(rawSearch);
+            if (Number.isFinite(finaIdNum)) {
+              or.push({ finaId: finaIdNum });
+            }
+          }
+
+          // _id is an ObjectId -> only allow exact match when it looks like an ObjectId
+          if (/^[0-9a-fA-F]{24}$/.test(rawSearch)) {
+            or.push({ _id: new Types.ObjectId(rawSearch) });
+          }
+
+          query.$or = or;
+        }
       }
 
       // Determine sort order

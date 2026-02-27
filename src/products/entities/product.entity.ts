@@ -17,7 +17,7 @@ export class Product {
   })
   name: LocalizedText;
 
-  @Prop({ type: String, required: true, unique: true })
+  @Prop({ type: String, required: false, default: '' })
   code: string; // Product code (e.g., "DEW-86511 55 31321321641684 SRG-982")
 
   @Prop({ type: Number, required: false, index: true })

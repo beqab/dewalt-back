@@ -146,7 +146,7 @@ export class CategoriesController {
     type: [CategoryResponseDto],
   })
   findAllCategories(@Query('brandId') brandId?: string) {
-    if (brandId) {
+    if (brandId && brandId !== 'all') {
       return this.categoriesService.findCategoriesByBrand(brandId);
     }
     return this.categoriesService.findAllCategories();
@@ -249,7 +249,7 @@ export class CategoriesController {
     @Query('brandId') brandId?: string,
     @Query('categoryId') categoryId?: string,
   ) {
-    if (brandId && categoryId) {
+    if (brandId && categoryId && brandId !== 'all' && categoryId !== 'all') {
       return this.categoriesService.findChildCategoriesByBrandAndCategory(
         brandId,
         categoryId,
