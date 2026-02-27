@@ -17,6 +17,7 @@ import {
 import { Product, ProductDocument } from '../products/entities/product.entity';
 import { TranslationHelperService } from '../translation/translationHelper.service';
 import { User, UserDocument } from '../user/entities/user.entity';
+import { EmailService } from '../email/email.service';
 
 type LocalizedText = { ka: string; en: string };
 
@@ -49,7 +50,26 @@ export class OrdersService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly translationHelper: TranslationHelperService,
+    private readonly emailService: EmailService,
   ) {}
+
+  private async resolveRecipientEmail(
+    order: OrderDocument,
+  ): Promise<string | null> {
+    if (order.email) return order.email;
+
+    const userId =
+      order.userId instanceof Types.ObjectId
+        ? order.userId
+        : typeof order.userId === 'string' &&
+            Types.ObjectId.isValid(order.userId)
+          ? new Types.ObjectId(order.userId)
+          : null;
+    if (!userId) return null;
+
+    const user = await this.userModel.findById(userId).select('email').exec();
+    return user?.email ?? null;
+  }
 
   private escapeRegex(input: string): string {
     return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -90,6 +110,13 @@ export class OrdersService {
 
     if (!items || items.length === 0) {
       throw new BadRequestException('Order must include at least one item');
+    }
+
+    let locale: 'ka' | 'en' = 'ka';
+    try {
+      locale = this.translationHelper.currentLanguage;
+    } catch {
+      locale = 'ka';
     }
 
     const productIds = items.map((item) => item.productId);
@@ -135,6 +162,11 @@ export class OrdersService {
       const lineTotal = unitPrice * item.quantity;
       return {
         productId: new Types.ObjectId(item.productId),
+        // Snapshot product fields at order time so the order remains readable
+        // even if the product is later deleted/changed.
+        name: product.name as unknown as LocalizedText,
+        image: product.image,
+        finaCode: product.finaCode || undefined,
         quantity: item.quantity,
         unitPrice,
         lineTotal,
@@ -149,6 +181,7 @@ export class OrdersService {
 
     const order = new this.orderModel({
       uuid: orderCode,
+      locale,
       name: createOrderDto.name,
       surname: createOrderDto.surname,
       email: createOrderDto.email || undefined,
@@ -169,23 +202,29 @@ export class OrdersService {
     return order.save();
   }
 
-  async createPayment(orderId: string, locale: 'ka' | 'en' = 'ka') {
+  async createPayment(orderId: string, locale?: 'ka' | 'en') {
     const order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Order not found');
+    }
+
+    const resolvedLocale = locale ?? order.locale ?? 'ka';
+    if (locale && order.locale !== locale) {
+      order.locale = locale;
+      await order.save();
     }
 
     const amount = order.total;
     const requestParams: PaymentRequestParams = {
       amount: amount * 100,
       currency: 'GEL',
-      lang: 'ka',
+      lang: resolvedLocale,
       merchant_id: process.env.FLITT_MERCHANT_ID,
       order_desc: 'Order payment',
       order_id: orderId,
       // response_url: `${process.env.FRONT_URL}ka/payment-status?orderId=${orderId}`,
 
-      response_url: `${process.env.API_URL}orders/return?locale=${locale}`,
+      response_url: `${process.env.API_URL}orders/return?locale=${resolvedLocale}`,
       server_callback_url: `${process.env.API_URL}orders/callback`,
     };
     const secret_key = process.env.FLITT_SECRET_KEY;
@@ -263,8 +302,27 @@ export class OrdersService {
       }
 
       if (order_status === 'approved') {
-        order.status = OrderStatus.Paid;
-        await order.save();
+        const wasPaid = order.status === OrderStatus.Paid;
+        if (!wasPaid) {
+          order.status = OrderStatus.Paid;
+          await order.save();
+
+          let to: string | null = order.email;
+          if (!to) {
+            to = await this.resolveRecipientEmail(order);
+          }
+          if (to) {
+            void this.emailService
+              .sendOrderPaidEmail({
+                to,
+                locale: order.locale ?? 'ka',
+
+                // @ts-expect-error: order type does not match OrderWithId as _id can be unknown
+                order: order,
+              })
+              .catch(() => undefined);
+          }
+        }
       }
 
       return { status: 'ok' }; // აუცილებელია რომ ok დაბრუნდეს
@@ -303,7 +361,7 @@ export class OrdersService {
       .populate({
         path: 'items.productId',
         select:
-          'name code image images slug price originalPrice discount inStock quantity rating reviewCount finaId finaCode specs',
+          '_id name code image images slug price originalPrice discount inStock quantity rating reviewCount finaId finaCode specs',
       })
       .exec();
 
@@ -351,73 +409,78 @@ export class OrdersService {
     pages: number;
     totalPages: number;
   }> {
-    const { page = 1, limit = 10, status, userId, id, uuid, email } = query;
+    try {
+      const { page = 1, limit = 10, status, userId, id, uuid, email } = query;
 
-    const filter: Record<string, unknown> = {};
-    if (status) {
-      filter.status = status;
-    } else {
-      filter.status = {
-        $nin: [OrderStatus.Pending, OrderStatus.Failed],
-      };
-    }
-    if (userId) {
-      filter.userId = userId;
-    }
-    if (id) {
-      const trimmed = String(id).trim();
-      if (!Types.ObjectId.isValid(trimmed)) {
-        throw new BadRequestException('Invalid order id format');
+      const filter: Record<string, unknown> = {};
+      if (status) {
+        filter.status = status;
+      } else {
+        filter.status = {
+          $nin: [OrderStatus.Pending, OrderStatus.Failed],
+        };
       }
-      filter._id = new Types.ObjectId(trimmed);
-    }
+      if (userId) {
+        filter.userId = userId;
+      }
+      if (id) {
+        const trimmed = String(id).trim();
+        if (!Types.ObjectId.isValid(trimmed)) {
+          throw new BadRequestException('Invalid order id format');
+        }
+        filter._id = new Types.ObjectId(trimmed);
+      }
 
-    const uuidFilter = uuid
-      ? this.buildCaseInsensitiveContains(String(uuid))
-      : undefined;
-    const emailFilter = email
-      ? this.buildCaseInsensitiveContains(String(email))
-      : undefined;
+      const uuidFilter = uuid
+        ? this.buildCaseInsensitiveContains(String(uuid))
+        : undefined;
+      const emailFilter = email
+        ? this.buildCaseInsensitiveContains(String(email))
+        : undefined;
 
-    if (uuidFilter) {
-      filter.uuid = uuidFilter;
-    }
+      if (uuidFilter) {
+        filter.uuid = uuidFilter;
+      }
 
-    if (emailFilter) {
-      const userIds = await this.userModel
-        .find({ email: emailFilter })
-        .select('_id')
-        .lean()
+      if (emailFilter) {
+        const userIds = await this.userModel
+          .find({ email: emailFilter })
+          .select('_id')
+          .lean()
+          .exec();
+        const ids = (userIds || []).map((u) =>
+          String((u as { _id: unknown })._id),
+        );
+
+        filter.$or = [
+          { email: emailFilter },
+          ...(ids.length > 0 ? [{ userId: { $in: ids } }] : []),
+        ];
+      }
+
+      const skip = (page - 1) * limit;
+      const total = await this.orderModel.countDocuments(filter);
+      const orders = await this.orderModel
+        .find(filter)
+        .populate('userId', 'name surname email')
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 })
         .exec();
-      const ids = (userIds || []).map((u) =>
-        String((u as { _id: unknown })._id),
-      );
 
-      filter.$or = [
-        { email: emailFilter },
-        ...(ids.length > 0 ? [{ userId: { $in: ids } }] : []),
-      ];
+      const totalPages = Math.ceil(total / limit);
+      return {
+        data: orders,
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        pages: totalPages,
+        totalPages,
+      };
+    } catch (error) {
+      console.log(error);
+      throw new BadRequestException(error);
     }
-
-    const skip = (page - 1) * limit;
-    const total = await this.orderModel.countDocuments(filter);
-    const orders = await this.orderModel
-      .find(filter)
-      .populate('userId', 'name surname email')
-      .skip(skip)
-      .limit(limit)
-      .sort({ createdAt: -1 })
-      .exec();
-
-    const totalPages = Math.ceil(total / limit);
-    return {
-      data: orders,
-      total,
-      page: Number(page),
-      limit: Number(limit),
-      pages: totalPages,
-      totalPages,
-    };
   }
 
   async findMyOrders(query: {
@@ -461,10 +524,6 @@ export class OrdersService {
           ...filter,
           status: { $nin: [OrderStatus.Failed, OrderStatus.Pending] }, // Exclude both enum and string status values for resilience
         })
-        .populate({
-          path: 'items.productId',
-          select: 'name code image slug',
-        })
         .lean()
         .skip(skip)
         .limit(limit)
@@ -475,21 +534,34 @@ export class OrdersService {
       const translatedOrders = (orders ?? []).map((order: any) => ({
         ...order,
         items: (order.items ?? []).map((item: any) => {
-          const p = item.productId;
-          if (!p || typeof p === 'string') return item;
+          const rawId = item.productId;
+          const id =
+            rawId instanceof Types.ObjectId
+              ? rawId.toHexString()
+              : typeof rawId === 'string'
+                ? rawId
+                : null;
 
-          const nameValue = p.name as LocalizedText | string | undefined;
-          const translatedName =
-            typeof nameValue === 'string' ? nameValue : nameValue?.[lang];
+          const snapshotNameValue = item.name as
+            | LocalizedText
+            | string
+            | undefined;
+          const snapshotTranslatedName =
+            typeof snapshotNameValue === 'string'
+              ? snapshotNameValue
+              : snapshotNameValue?.[lang];
+
+          const snapshotImage =
+            typeof item.image === 'string' && item.image.length
+              ? item.image
+              : undefined;
 
           return {
             ...item,
             productId: {
-              _id: p._id,
-              name: translatedName ?? '',
-              code: p.code,
-              image: p.image,
-              slug: p.slug,
+              _id: id ?? undefined,
+              name: snapshotTranslatedName ?? '',
+              image: snapshotImage,
             },
           };
         }),
@@ -510,17 +582,40 @@ export class OrdersService {
   }
 
   async updateStatus(updateOrderDto: UpdateOrderDto): Promise<OrderDocument> {
-    const { orderId, status } = updateOrderDto;
-    const order = await this.orderModel.findByIdAndUpdate(
-      orderId,
-      { status },
-      { new: true },
-    );
+    try {
+      const { orderId, status } = updateOrderDto;
+      const order = await this.orderModel.findById(orderId).exec();
 
-    if (!order) {
-      throw new NotFoundException('Order not found');
+      if (!order) {
+        throw new NotFoundException('Order not found');
+      }
+
+      const oldStatus = order.status;
+      if (oldStatus === status) return order;
+
+      order.status = status;
+      const saved = await order.save();
+
+      let to: string | null = saved.email;
+      if (!to) {
+        to = await this.resolveRecipientEmail(saved);
+      }
+      if (to) {
+        void this.emailService
+          .sendOrderStatusChangedEmail({
+            to,
+            locale: saved.locale ?? 'ka',
+            order: saved,
+            oldStatus,
+            newStatus: status,
+          })
+          .catch(() => undefined);
+      }
+
+      return saved;
+    } catch (error) {
+      console.log(error);
+      throw new BadRequestException(error);
     }
-
-    return order;
   }
 }

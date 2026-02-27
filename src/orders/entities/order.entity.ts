@@ -17,6 +17,11 @@ export enum DeliveryType {
   Region = 'region',
 }
 
+export interface LocalizedText {
+  ka: string;
+  en: string;
+}
+
 @Schema({ _id: false })
 export class OrderItem {
   @Prop({
@@ -25,6 +30,21 @@ export class OrderItem {
     required: true,
   })
   productId: MongooseSchema.Types.ObjectId;
+
+  @Prop({
+    type: {
+      ka: { type: String, required: true },
+      en: { type: String, required: true },
+    },
+    required: true,
+  })
+  name: LocalizedText;
+
+  @Prop({ type: String, required: true })
+  image: string; // Main product image URL
+
+  @Prop({ type: String, required: false, index: true })
+  finaCode?: string; // External FINA product code
 
   @Prop({ type: Number, required: true, min: 1 })
   quantity: number;
@@ -42,6 +62,14 @@ export const OrderItemSchema = SchemaFactory.createForClass(OrderItem);
 export class Order {
   @Prop({ type: String, required: true, unique: true })
   uuid: string;
+
+  @Prop({
+    type: String,
+    enum: ['ka', 'en'],
+    default: 'ka',
+    required: false,
+  })
+  locale: 'ka' | 'en';
 
   @Prop({ type: String, required: true })
   name: string;
