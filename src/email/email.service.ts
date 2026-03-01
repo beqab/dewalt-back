@@ -150,7 +150,6 @@ export class EmailService {
         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
           <tr>
             ${infoCard(orderCodeLabel, String(order.uuid ?? ''))}
-            
           </tr>
         </table>
 

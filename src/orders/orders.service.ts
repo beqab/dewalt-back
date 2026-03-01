@@ -214,9 +214,10 @@ export class OrdersService {
       await order.save();
     }
 
+    console.log(order.total * 100, 'amount * 100');
     const amount = order.total;
     const requestParams: PaymentRequestParams = {
-      amount: amount * 100,
+      amount: Math.round(amount * 100),
       currency: 'GEL',
       lang: resolvedLocale,
       merchant_id: process.env.FLITT_MERCHANT_ID,
@@ -382,9 +383,9 @@ export class OrdersService {
         userId: new Types.ObjectId(userIdValue),
       });
     } else if (order.email) {
-      ordersCountForUser = await this.orderModel.countDocuments({
-        email: this.buildCaseInsensitiveContains(order.email) ?? order.email,
-      });
+      // ordersCountForUser = await this.orderModel.countDocuments({
+      //   email: this.buildCaseInsensitiveContains(order.email) ?? order.email,
+      // });
     }
 
     return {

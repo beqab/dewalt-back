@@ -232,13 +232,13 @@ export class AdminController {
     const result = await this.adminService.getToken(refreshToken);
 
     // Set new refresh token as HTTP-only cookie
-    res.cookie('refresh_token', result.refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
-      path: '/',
-    });
+    // res.cookie('refresh_token', result.refreshToken, {
+    //   httpOnly: true,
+    //   secure: process.env.NODE_ENV === 'production',
+    //   sameSite: 'lax',
+    //   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+    //   path: '/',
+    // });
 
     // Return refreshToken in response body for NextAuth to update JWT
     // It will be stored in JWT and used for server-side refresh calls

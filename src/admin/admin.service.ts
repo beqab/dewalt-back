@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model } from 'mongoose';
 import { CreateAdminDto } from './dto/create-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 import { Admin, AdminDocument } from './entities/admin.entity';
@@ -72,11 +72,21 @@ export class AdminService {
 
     const query: Record<string, unknown> = {};
     if (args?.search && args.search.trim().length > 0) {
-      const escaped = args.search
-        .trim()
-        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        .toLowerCase();
-      query.email = { $regex: escaped, $options: 'i' };
+      const search = args.search.trim();
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+      const or: Record<string, unknown>[] = [
+        { email: { $regex: escaped, $options: 'i' } },
+        // Support common phone fields if present in the collection.
+        { phone: { $regex: escaped, $options: 'i' } },
+        { phoneNumber: { $regex: escaped, $options: 'i' } },
+      ];
+
+      if (isValidObjectId(search)) {
+        or.unshift({ _id: search });
+      }
+
+      query.$or = or;
     }
 
     const select =
@@ -173,9 +183,12 @@ export class AdminService {
           username: admin.username,
         },
         {
+          secret: this.configService.get<string>('ADMIN_REFRESH_SECRET'),
           expiresIn: '7d',
         },
       );
+
+      console.log(refreshToken, 'refreshToken from admin.service.ts on login');
 
       // Update admin with refresh token
       await this.adminModel.findByIdAndUpdate(admin._id, {
@@ -188,12 +201,15 @@ export class AdminService {
           username: admin.username,
         },
         {
-          expiresIn: '59m',
+          secret: this.configService.get<string>('ADMIN_ACCESS_SECRET'),
+          expiresIn: '2m',
         },
       );
 
+      console.log(token, 'token from admin.service.ts on login');
+
       // Calculate expiration timestamp for access token
-      const tokenExpiresAt = new Date(Date.now() + 59 * 60 * 1000);
+      const tokenExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
 
       // Get admin without password for response
       const result = await this.adminModel
@@ -248,77 +264,77 @@ export class AdminService {
 
   async getToken(refreshToken: string) {
     try {
-      console.log(refreshToken, 'refreshToken');
-      // Verify and decode the refresh token
-      const decoded: { adminId: string } = this.jwtService.verify(
-        refreshToken,
-        {
-          secret: this.configService.get<string>('ADMIN_ACCESS_SECRET'),
-        },
-      );
+      const decoded = this.jwtService.verify<{
+        adminId: string;
+        username?: string;
+        exp?: number;
+      }>(refreshToken, {
+        secret: this.configService.get<string>('ADMIN_REFRESH_SECRET'),
+      });
 
-      console.log(
-        'blabla from admin.service.ts',
-        this.configService.get<string>('ADMIN_ACCESS_SECRET'),
-      );
+      const adminId = decoded.adminId;
+      const refreshExpMs =
+        typeof decoded.exp === 'number' ? decoded.exp * 1000 : undefined;
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      const shouldRotateRefreshToken =
+        typeof refreshExpMs === 'number' &&
+        refreshExpMs - Date.now() <= oneDayMs;
 
-      console.log(decoded, 'decoded');
+      let admin: AdminResponse | null = null;
+      let nextRefreshToken = refreshToken;
 
-      const admin = await this.adminModel.findById(decoded.adminId);
+      if (shouldRotateRefreshToken) {
+        const newRefreshToken = this.jwtService.sign(
+          {
+            adminId,
+            username: decoded.username,
+          },
+          {
+            secret: this.configService.get<string>('ADMIN_REFRESH_SECRET'),
+            expiresIn: '7d',
+          },
+        );
 
-      console.log(
-        admin,
-        'admin from admin.service.ts',
-        admin?.refreshToken.indexOf(refreshToken),
-      );
+        // Rotate atomically only if the provided refresh token still exists.
+        admin = await this.adminModel
+          .findOneAndUpdate(
+            { _id: adminId, refreshToken },
+            { $set: { 'refreshToken.$': newRefreshToken } },
+            { new: true },
+          )
+          .select('-password')
+          .lean();
 
-      if (!admin || admin.refreshToken.indexOf(refreshToken) === -1) {
+        nextRefreshToken = newRefreshToken;
+      } else {
+        // No rotation: just validate the refresh token exists for this admin.
+        admin = await this.adminModel
+          .findOne({ _id: adminId, refreshToken })
+          .select('-password')
+          .lean();
+      }
+
+      if (!admin) {
         throw new BadRequestException('Invalid refresh token');
       }
 
-      const adminId = admin._id as string;
-
-      // Generate new access token
       const newToken = this.jwtService.sign(
         {
           adminId,
-          username: admin.username,
+          username: (admin as { username: string }).username,
         },
         {
-          expiresIn: '59m',
+          secret: this.configService.get<string>('ADMIN_ACCESS_SECRET'),
+          expiresIn: '2m',
         },
       );
-
-      const newRefreshToken = this.jwtService.sign(
-        {
-          adminId,
-          username: admin.username,
-        },
-        {
-          expiresIn: '7d',
-        },
-      );
-
-      // Replace the used refresh token in the admin's refreshToken array with the new one
-      const updatedRefreshTokens = (admin.refreshToken || []).map(
-        (token: string) => (token === refreshToken ? newRefreshToken : token),
-      );
-
-      await this.adminModel.findByIdAndUpdate(adminId, {
-        refreshToken: updatedRefreshTokens,
-      });
-
-      const result = await this.adminModel
-        .findById(adminId)
-        .select('-password')
-        .lean();
 
       return {
         message: 'Token refreshed successfully',
         token: newToken,
-        tokenExpiresAt: new Date(Date.now() + 59 * 60 * 1000),
-        refreshToken: newRefreshToken,
-        admin: result,
+        tokenExpiresAt: new Date(Date.now() + 2 * 60 * 1000),
+        refreshToken: nextRefreshToken,
+        admin,
       };
     } catch (error) {
       console.log(error, 'error');
