@@ -13,4 +13,3 @@ export class GetPriceTypesResponseDto {
   })
   ex?: string | null;
 }
-

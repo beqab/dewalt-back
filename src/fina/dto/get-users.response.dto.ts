@@ -13,4 +13,3 @@ export class GetUsersResponseDto {
   })
   ex?: string | null;
 }
-

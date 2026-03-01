@@ -12,4 +12,3 @@ export class GetProductsRestArrayDto {
   @IsInt({ each: true })
   prods: number[];
 }
-

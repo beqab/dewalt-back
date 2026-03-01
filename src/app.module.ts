@@ -19,6 +19,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { OrdersModule } from './orders/orders.module';
 import { RevalidateModule } from './revalidate/revalidate.module';
 import { FinaModule } from './fina/fina.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -101,6 +102,7 @@ import { FinaModule } from './fina/fina.module';
     TranslationModule,
     RevalidateModule,
     FinaModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

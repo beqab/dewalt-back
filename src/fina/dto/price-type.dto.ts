@@ -7,4 +7,3 @@ export class PriceTypeDto {
   @ApiProperty({ description: 'Price type name', example: 'საცალო' })
   name: string;
 }
-

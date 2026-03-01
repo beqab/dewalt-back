@@ -23,4 +23,3 @@ export class SaveDocProductOutProductDto {
   @Min(0)
   price: number;
 }
-

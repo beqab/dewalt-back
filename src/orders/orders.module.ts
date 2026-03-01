@@ -7,6 +7,7 @@ import { Product, ProductSchema } from '../products/entities/product.entity';
 import { TranslationModule } from '../translation/translation.module';
 import { User, UserSchema } from '../user/entities/user.entity';
 import { EmailModule } from '../email/email.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { EmailModule } from '../email/email.module';
     ]),
     TranslationModule,
     EmailModule,
+    SettingsModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

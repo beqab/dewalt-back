@@ -18,13 +18,9 @@ import { Product, ProductDocument } from '../products/entities/product.entity';
 import { TranslationHelperService } from '../translation/translationHelper.service';
 import { User, UserDocument } from '../user/entities/user.entity';
 import { EmailService } from '../email/email.service';
+import { SettingsService } from '../settings/settings.service';
 
 type LocalizedText = { ka: string; en: string };
-
-const DELIVERY_PRICES: Record<DeliveryType, number> = {
-  [DeliveryType.Tbilisi]: 5,
-  [DeliveryType.Region]: 15,
-};
 
 type PaymentRequestParams = {
   amount: number;
@@ -51,6 +47,7 @@ export class OrdersService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private readonly translationHelper: TranslationHelperService,
     private readonly emailService: EmailService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   private async resolveRecipientEmail(
@@ -174,7 +171,20 @@ export class OrdersService {
     });
 
     const subtotal = orderItems.reduce((sum, item) => sum + item.lineTotal, 0);
-    const deliveryPrice = DELIVERY_PRICES[deliveryType] ?? 0;
+    const settings = await this.settingsService.getSettings();
+
+    let deliveryPrice = 0;
+    if (deliveryType === DeliveryType.Tbilisi) {
+      const fee = settings.deliveryTbilisiPrice ?? 0;
+      const freeOver = settings.deliveryTbilisiFreeOver;
+      deliveryPrice =
+        typeof freeOver === 'number' && subtotal >= freeOver ? 0 : fee;
+    } else if (deliveryType === DeliveryType.Region) {
+      const fee = settings.deliveryRegionPrice ?? 0;
+      const freeOver = settings.deliveryRegionFreeOver;
+      deliveryPrice =
+        typeof freeOver === 'number' && subtotal >= freeOver ? 0 : fee;
+    }
     const total = subtotal + deliveryPrice;
 
     const orderCode = await this.generateUniqueOrderCode();

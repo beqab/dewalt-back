@@ -9,4 +9,3 @@ export class HomepageBrandSliderDto {
   @ApiProperty({ type: [ProductPublicResponseDto] })
   products: ProductPublicResponseDto[];
 }
-

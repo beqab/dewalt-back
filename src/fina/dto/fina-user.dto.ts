@@ -13,4 +13,3 @@ export class FinaUserDto {
   })
   type: number;
 }
-
