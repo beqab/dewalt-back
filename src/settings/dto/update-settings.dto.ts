@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsNumber,
   IsOptional,
@@ -49,6 +50,11 @@ export class UpdateSettingsDto {
   @ValidateNested()
   @Type(() => LocalizedTextDto)
   contactAddress?: LocalizedTextDto;
+
+  @ApiPropertyOptional({ example: true })
+  @IsOptional()
+  @IsBoolean()
+  freeDeliveryEnabled?: boolean;
 
   @ApiPropertyOptional({ example: 10 })
   @IsOptional()

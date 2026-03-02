@@ -172,16 +172,21 @@ export class OrdersService {
 
     const subtotal = orderItems.reduce((sum, item) => sum + item.lineTotal, 0);
     const settings = await this.settingsService.getSettings();
+    const freeDeliveryEnabled = settings.freeDeliveryEnabled !== false;
 
     let deliveryPrice = 0;
     if (deliveryType === DeliveryType.Tbilisi) {
       const fee = settings.deliveryTbilisiPrice ?? 0;
-      const freeOver = settings.deliveryTbilisiFreeOver;
+      const freeOver = freeDeliveryEnabled
+        ? settings.deliveryTbilisiFreeOver
+        : undefined;
       deliveryPrice =
         typeof freeOver === 'number' && subtotal >= freeOver ? 0 : fee;
     } else if (deliveryType === DeliveryType.Region) {
       const fee = settings.deliveryRegionPrice ?? 0;
-      const freeOver = settings.deliveryRegionFreeOver;
+      const freeOver = freeDeliveryEnabled
+        ? settings.deliveryRegionFreeOver
+        : undefined;
       deliveryPrice =
         typeof freeOver === 'number' && subtotal >= freeOver ? 0 : fee;
     }
@@ -278,6 +283,7 @@ export class OrdersService {
       });
 
       const data = (await response.json()) as Record<string, unknown>;
+      console.log(data, 'data+++++++++++++++++');
       return data;
     } catch (error) {
       if (error instanceof Error) {

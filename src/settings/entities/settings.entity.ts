@@ -32,6 +32,9 @@ export class Settings {
   contactAddress?: LocalizedText;
 
   // Delivery rules
+  @Prop({ type: Boolean, required: true, default: true })
+  freeDeliveryEnabled: boolean;
+
   @Prop({ type: Number, required: true, default: 10 })
   deliveryTbilisiPrice: number;
 

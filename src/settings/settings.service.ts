@@ -49,6 +49,19 @@ export class SettingsService {
       };
     }
 
+    // Backward compatibility: ensure boolean toggles exist on older docs.
+    const freeDeliveryEnabled = (
+      doc as unknown as { freeDeliveryEnabled?: unknown }
+    ).freeDeliveryEnabled;
+    if (typeof freeDeliveryEnabled !== 'boolean') {
+      await this.settingsModel
+        .updateOne({ _id: doc._id }, { $set: { freeDeliveryEnabled: true } })
+        .exec();
+      (
+        doc as unknown as { freeDeliveryEnabled?: unknown }
+      ).freeDeliveryEnabled = true;
+    }
+
     return doc;
   }
 
@@ -56,7 +69,8 @@ export class SettingsService {
     const update = pickDefined(dto);
 
     // Avoid writing empty localized address object if nothing provided
-    const addr = (update as unknown as { contactAddress?: unknown }).contactAddress;
+    const addr = (update as unknown as { contactAddress?: unknown })
+      .contactAddress;
     if (addr && typeof addr === 'object') {
       const a = addr as { ka?: unknown; en?: unknown };
       const normalized = {
@@ -64,7 +78,8 @@ export class SettingsService {
         en: typeof a.en === 'string' ? a.en : undefined,
       };
       if (normalized.ka === undefined && normalized.en === undefined) {
-        delete (update as unknown as { contactAddress?: unknown }).contactAddress;
+        delete (update as unknown as { contactAddress?: unknown })
+          .contactAddress;
       } else {
         (update as unknown as { contactAddress?: unknown }).contactAddress = {
           ...(normalized.ka !== undefined ? { ka: normalized.ka } : {}),
