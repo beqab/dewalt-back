@@ -3,6 +3,7 @@ import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FinaService } from './fina.service';
 import { GetProductsRestArrayDto } from './dto/get-products-rest-array.dto';
 import { FinaProductListItemDto } from './dto/fina-product-list-item.dto';
+import { GetProductsRestResponseDto } from './dto/get-products-rest.response.dto';
 
 @ApiTags('fina')
 @Controller('fina')
@@ -49,8 +50,9 @@ export class FinaController {
   @ApiResponse({
     status: 200,
     description: 'FINA getProductsRest response (raw)',
+    type: GetProductsRestResponseDto,
   })
-  getProductsRest() {
+  getProductsRest(): Promise<GetProductsRestResponseDto> {
     return this.finaService.getProductsRest();
   }
 
@@ -62,6 +64,7 @@ export class FinaController {
   @ApiResponse({
     status: 200,
     description: 'FINA getProductsRestArray response (raw)',
+    type: GetProductsRestResponseDto,
   })
   async getProductsRestArray(@Body() body: GetProductsRestArrayDto) {
     return await this.finaService.getProductsRestArray(body.prods);

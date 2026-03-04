@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SaveDocProductOutDto } from './dto/save-doc-product-out.dto';
+import { GetProductsRestResponseDto } from './dto/get-products-rest.response.dto';
 
 type FinaAuthMode = 'basic' | 'query' | 'token' | 'none';
 
@@ -274,8 +275,10 @@ export class FinaService {
    * FINA docs: POST api/operation/getProductsRestArray
    * Body: { prods: [1, 2] }
    */
-  async getProductsRestArray(prods: number[]): Promise<unknown> {
-    return await this.requestJson({
+  async getProductsRestArray(
+    prods: number[],
+  ): Promise<GetProductsRestResponseDto> {
+    return await this.requestJson<GetProductsRestResponseDto>({
       endpoint: '/api/operation/getProductsRestArray',
       method: 'POST',
       body: { prods },
@@ -285,8 +288,8 @@ export class FinaService {
   /**
    * FINA docs: GET api/operation/getProductsRest
    */
-  async getProductsRest(): Promise<unknown> {
-    return await this.requestJson({
+  async getProductsRest(): Promise<GetProductsRestResponseDto> {
+    return await this.requestJson<GetProductsRestResponseDto>({
       endpoint: '/api/operation/getProductsRest',
       method: 'GET',
     });

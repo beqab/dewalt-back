@@ -19,6 +19,16 @@ import { LocalizedText } from '../categories/entities';
 import { TranslationHelperService } from '../translation/translationHelper.service';
 import { FrontRevalidateService } from '../revalidate/front-revalidate.service';
 import { FRONT_PRODUCTS_TAGS } from '../revalidate/front-cache-tags';
+import { FinaService } from '../fina/fina.service';
+import { SyncFinaQuantitiesResponseDto } from './dto/sync-fina-quantities.response.dto';
+
+const chunk = <T>(arr: T[], size: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    out.push(arr.slice(i, i + size));
+  }
+  return out;
+};
 
 interface CategoryType extends Record<string, unknown> {
   _id: string;
@@ -42,7 +52,109 @@ export class ProductsService {
     private childCategoryModel: Model<ChildCategory>,
     private translationHelper: TranslationHelperService,
     private frontRevalidate: FrontRevalidateService,
+    private finaService: FinaService,
   ) {}
+
+  async syncQuantitiesFromFina(): Promise<SyncFinaQuantitiesResponseDto> {
+    // Step 1: Find all local products with a valid finaId
+    const local = (await this.productModel
+      .find(
+        { finaId: { $exists: true, $ne: null } },
+        { _id: 1, finaId: 1, quantity: 1 },
+      )
+      .lean()
+      .exec()) as { _id: unknown; finaId?: number | null; quantity?: number }[];
+
+    // Step 2: Extract all valid finaIds from local products
+    const finaIds = local
+      .map((p) => Number(p.finaId))
+      .filter((id) => Number.isFinite(id) && id > 0);
+
+    // Step 3: For each chunked set of finaIds, fetch the latest stock levels from Fina and aggregate the rest quantities
+    const restByFinaId = new Map<number, number>();
+    const requestChunkSize = 50;
+    for (const idsChunk of chunk(finaIds, requestChunkSize)) {
+      const response = await this.finaService.getProductsRestArray(idsChunk);
+
+      // For each returned rest item, sum up the quantities for each finaId
+      for (const it of response?.rest || []) {
+        const id = Number(it.id);
+        if (!Number.isFinite(id) || id <= 0) continue;
+
+        const prev = restByFinaId.get(id) ?? 0;
+        restByFinaId.set(id, prev + Math.max(0, Number(it.rest) || 0));
+      }
+    }
+
+    console.log(restByFinaId, 'restByFinaId');
+
+    // Step 4: Prepare bulk update operations for local products whose local quantity is different from 'rest'
+    const ops: {
+      updateOne: {
+        filter: Record<string, unknown>;
+        update: Record<string, unknown>;
+      };
+    }[] = [];
+
+    let matchedLocalProducts = 0;
+    let updatedProducts = 0;
+    let skippedNoRest = 0;
+
+    // For each local product, match with Fina data and determine update requirements
+    for (const p of local) {
+      const finaId = Number(p.finaId);
+      if (!finaId || isNaN(finaId)) continue;
+
+      const rest = restByFinaId.get(finaId);
+      if (rest === undefined) {
+        // No rest value found in Fina for this product, skipping update for this product
+        skippedNoRest += 1;
+        continue;
+      }
+
+      matchedLocalProducts += 1;
+
+      const nextQty = Math.max(0, rest);
+      const currentQty = typeof p.quantity === 'number' ? p.quantity : 0;
+
+      // If the quantity is the same, no update needed
+      if (currentQty === nextQty) continue;
+
+      // Schedule update operation for products where the quantity needs updating
+      ops.push({
+        updateOne: {
+          filter: { _id: p._id },
+          update: { $set: { quantity: nextQty } },
+        },
+      });
+    }
+
+    // Step 5: Execute bulk update in chunks to avoid overloading the database
+    const writeChunkSize = 50;
+    for (const opsChunk of chunk(ops, writeChunkSize)) {
+      if (opsChunk.length === 0) continue;
+      await this.productModel.bulkWrite(opsChunk, { ordered: false });
+      // Count how many products were actually updated in this chunk
+      updatedProducts += opsChunk.length;
+    }
+
+    // Step 6: Invalidate/revalidate frontend cache tags if any products were updated
+    if (updatedProducts > 0) {
+      void this.frontRevalidate.revalidateTags(
+        FRONT_PRODUCTS_TAGS as unknown as string[],
+      );
+    }
+
+    // Step 7: Return a summary of the sync operation's results
+    return {
+      localProductsWithFinaId: local.length, // total local products with a finaId
+      requestedFinaIds: finaIds.length, // total finaIds sent to Fina
+      finaRestItemsParsed: restByFinaId.size, // total unique finaIds for which rest info was fetched
+      matchedLocalProducts, // local products successfully matched with Fina rest data
+      updatedProducts, // local products whose quantity was updated
+      skippedNoRest, // local products skipped due to missing Fina rest
+    };
+  }
 
   async getHomepageBrandSliders(options?: {
     brandLimit?: number;

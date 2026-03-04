@@ -13,10 +13,12 @@ import {
   ChildCategorySchema,
 } from '../categories/entities/child-category.entity';
 import { TranslationModule } from '../translation/translation.module';
+import { FinaModule } from '../fina/fina.module';
 
 @Module({
   imports: [
     TranslationModule,
+    FinaModule,
     MongooseModule.forFeature([
       { name: Product.name, schema: ProductSchema },
       { name: Brand.name, schema: BrandSchema },

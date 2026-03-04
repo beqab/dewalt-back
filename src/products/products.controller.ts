@@ -25,6 +25,7 @@ import {
   ProductPublicResponseDto,
   ProductResponseDto,
 } from './dto';
+import { SyncFinaQuantitiesResponseDto } from './dto/sync-fina-quantities.response.dto';
 import { AdminAuthGuard } from '../guards/admin.guard';
 import { ProductDocument } from './entities';
 
@@ -32,6 +33,23 @@ import { ProductDocument } from './entities';
 @Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
+
+  @Post('admin/sync-fina-quantities')
+  // @UseGuards(AdminAuthGuard)
+  // @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Sync local product quantities from FINA (by finaId)',
+    description:
+      'Fetches FINA rest quantities for products that have a finaId and updates only Product.quantity when it differs.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Sync summary',
+    type: SyncFinaQuantitiesResponseDto,
+  })
+  syncFinaQuantities(): Promise<SyncFinaQuantitiesResponseDto> {
+    return this.productsService.syncQuantitiesFromFina();
+  }
 
   @Get('homepage/brand-sliders')
   @ApiOperation({
