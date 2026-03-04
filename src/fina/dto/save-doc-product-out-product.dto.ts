@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class SaveDocProductOutProductDto {
@@ -7,11 +7,15 @@ export class SaveDocProductOutProductDto {
   @Min(1)
   id: number;
 
-  @ApiProperty({ description: 'Product sub-code id', example: 0, default: 0 })
+  @ApiPropertyOptional({
+    description: 'Product sub-code id',
+    example: 0,
+    default: 0,
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
-  sub_id: number;
+  sub_id?: number;
 
   @ApiProperty({ description: 'Quantity', example: 2 })
   @IsNumber()

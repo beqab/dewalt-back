@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FinaService } from './fina.service';
 import { SaveDocProductOutDto } from './dto/save-doc-product-out.dto';
@@ -59,12 +59,40 @@ export class FinaOperationController {
     description:
       'Accepts a reduced payload and forwards to FINA /api/operation/saveDocProductOut with safe defaults for omitted fields.',
   })
-  // @ApiBody({ type: SaveDocProductOutDto })
+  @ApiBody({
+    type: SaveDocProductOutDto,
+    examples: {
+      sample: {
+        summary: 'Example payload (minimal + common optional fields)',
+        value: {
+          date: '2026-03-03T12:00:00',
+          purpose: 'ონლაინ გაყიდვა',
+          amount: 120,
+          currency: 'GEL',
+          rate: 1,
+          store: 1,
+          user: 3,
+          customer: 0,
+          is_vat: true,
+          vat: 1,
+          make_entry: true,
+          pay_type: 3,
+          price_type: 3,
+          w_type: 3,
+          t_type: 7,
+          t_payer: 1,
+          products: [{ id: 15, sub_id: 0, quantity: 2, price: 60 }],
+        },
+      },
+    },
+  })
   @ApiResponse({
     status: 200,
     description: 'FINA saveDocProductOut response (raw)',
   })
-  saveDocProductOut(@Body() body: any): Promise<SaveDocProductOutResponse> {
+  saveDocProductOut(
+    @Body() body: SaveDocProductOutDto,
+  ): Promise<SaveDocProductOutResponse> {
     console.log(body, 'body<insert>');
     return this.finaService.saveDocProductOut(body);
   }

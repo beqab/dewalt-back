@@ -121,6 +121,15 @@ export class Order {
     required: false,
   })
   userId?: MongooseSchema.Types.ObjectId;
+
+  @Prop({ type: Number, required: false })
+  finaDocProductOutId?: number;
+
+  @Prop({ type: String, required: false })
+  finaDocProductOutError?: string;
+
+  @Prop({ type: Date, required: false })
+  finaDocProductOutSyncedAt?: Date;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

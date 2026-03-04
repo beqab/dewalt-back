@@ -8,6 +8,7 @@ import { TranslationModule } from '../translation/translation.module';
 import { User, UserSchema } from '../user/entities/user.entity';
 import { EmailModule } from '../email/email.module';
 import { SettingsModule } from '../settings/settings.module';
+import { FinaModule } from '../fina/fina.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { SettingsModule } from '../settings/settings.module';
     TranslationModule,
     EmailModule,
     SettingsModule,
+    FinaModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

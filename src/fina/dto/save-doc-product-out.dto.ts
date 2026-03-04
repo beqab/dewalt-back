@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMinSize,
   IsArray,
@@ -16,7 +16,7 @@ import { Type } from 'class-transformer';
 import { SaveDocProductOutProductDto } from './save-doc-product-out-product.dto';
 
 export class SaveDocProductOutDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Operation id (0 for insert)',
     example: 0,
     default: 0,
@@ -24,7 +24,7 @@ export class SaveDocProductOutDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  id: number;
+  id?: number;
 
   @ApiProperty({
     description: 'Operation datetime (ISO 8601)',
@@ -36,14 +36,14 @@ export class SaveDocProductOutDto {
   @ApiProperty({ description: 'Purpose/comment', example: 'ონლაინ გაყიდვა' })
   @IsOptional()
   @IsString()
-  purpose: string;
+  purpose?: string;
 
   @ApiProperty({ description: 'Total amount', example: 120.0 })
   @IsNumber()
   @Min(0)
   amount: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Currency code',
     example: 'GEL',
     default: 'GEL',
@@ -51,47 +51,51 @@ export class SaveDocProductOutDto {
   @IsOptional()
   @IsString()
   @Length(3, 3)
-  currency: string;
+  currency?: string;
 
-  @ApiProperty({ description: 'Currency rate', example: 1, default: 1 })
+  @ApiPropertyOptional({ description: 'Currency rate', example: 1, default: 1 })
   @IsOptional()
   @IsNumber()
   @Min(0.000001)
-  rate: number;
+  rate?: number;
 
-  @ApiProperty({ description: 'Store id', example: 1 })
+  @ApiPropertyOptional({ description: 'Store id', example: 1 })
   @IsOptional()
   @IsInt()
   @Min(1)
-  store: number;
+  store?: number;
 
-  @ApiProperty({ description: 'User id (creator)', example: 2 })
+  @ApiPropertyOptional({ description: 'User id (creator)', example: 2 })
   @IsOptional()
   @IsInt()
   @Min(1)
-  user: number;
+  user?: number;
 
-  @ApiProperty({ description: 'Customer id (0 allowed)', example: 8 })
+  @ApiPropertyOptional({ description: 'Customer id (0 allowed)', example: 8 })
   @IsOptional()
   @IsInt()
   @Min(0)
-  customer: number;
+  customer?: number;
 
   @ApiProperty({ description: 'Includes VAT', example: true })
   @IsBoolean()
   is_vat: boolean;
 
-  @ApiProperty({ description: 'VAT value/rate', example: 1, default: 1 })
+  @ApiPropertyOptional({
+    description: 'VAT value/rate',
+    example: 1,
+    default: 1,
+  })
   @IsOptional()
   @IsNumber()
   @Min(0)
-  vat: number;
+  vat?: number;
 
   @ApiProperty({ description: 'Make accounting entry', example: true })
   @IsBoolean()
   make_entry: boolean;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
       'Pay type (0 cash, 1 non-cash, 2 consignment, 3 installment, ...)',
     example: 1,
@@ -99,31 +103,39 @@ export class SaveDocProductOutDto {
   @IsOptional()
   @IsInt()
   @Min(0)
-  pay_type: number;
+  pay_type?: number;
 
-  @ApiProperty({ description: 'Price type id', example: 3, default: 3 })
+  @ApiPropertyOptional({ description: 'Price type id', example: 3, default: 3 })
   @IsOptional()
   @IsInt()
   @Min(0)
-  price_type: number;
+  price_type?: number;
 
-  @ApiProperty({ description: 'Waybill type', example: 3, default: 3 })
+  @ApiPropertyOptional({ description: 'Waybill type', example: 3, default: 3 })
   @IsOptional()
   @IsInt()
   @Min(0)
-  w_type: number;
+  w_type?: number;
 
-  @ApiProperty({ description: 'Transport type', example: 7, default: 7 })
+  @ApiPropertyOptional({
+    description: 'Transport type',
+    example: 7,
+    default: 7,
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
-  t_type: number;
+  t_type?: number;
 
-  @ApiProperty({ description: 'Transport payer', example: 1, default: 1 })
+  @ApiPropertyOptional({
+    description: 'Transport payer',
+    example: 1,
+    default: 1,
+  })
   @IsOptional()
   @IsInt()
   @Min(0)
-  t_payer: number;
+  t_payer?: number;
 
   @ApiProperty({ type: [SaveDocProductOutProductDto] })
   @IsArray()

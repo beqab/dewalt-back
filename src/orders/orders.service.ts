@@ -19,6 +19,8 @@ import { TranslationHelperService } from '../translation/translationHelper.servi
 import { User, UserDocument } from '../user/entities/user.entity';
 import { EmailService } from '../email/email.service';
 import { SettingsService } from '../settings/settings.service';
+import { FinaService } from '../fina/fina.service';
+import { SaveDocProductOutDto } from '../fina/dto/save-doc-product-out.dto';
 
 type LocalizedText = { ka: string; en: string };
 
@@ -48,7 +50,88 @@ export class OrdersService {
     private readonly translationHelper: TranslationHelperService,
     private readonly emailService: EmailService,
     private readonly settingsService: SettingsService,
+    private readonly finaService: FinaService,
   ) {}
+
+  private async syncFinaDocProductOut(
+    orderId: string | Types.ObjectId,
+  ): Promise<void> {
+    // Find the order by its ID and populate items.productId with finaId
+    const order = await this.orderModel
+      .findById(orderId)
+      .populate({
+        path: 'items.productId',
+        select: 'finaId',
+      })
+      .exec();
+
+    // If order not found, exit
+    if (!order) return;
+
+    // Only sync if order is paid
+    if (order.status !== OrderStatus.Paid) return;
+
+    // Only sync if not already synced (finaDocProductOutId should not be a positive number)
+    if (
+      typeof order.finaDocProductOutId === 'number' &&
+      order.finaDocProductOutId > 0
+    )
+      return;
+
+    try {
+      // Prepare products array for payload and collect any missing finaIds
+      const products: SaveDocProductOutDto['products'] = [];
+
+      for (const item of order.items || []) {
+        // Get finaId from populated product
+        const populatedProduct = item.productId as unknown as {
+          finaId?: number | null;
+        };
+        const finaId = populatedProduct?.finaId;
+
+        // If finaId invalid, continue
+        if (!finaId) {
+          continue;
+        }
+
+        // Add product info to products array
+        products.push({
+          id: finaId,
+          sub_id: 0,
+          quantity: item.quantity,
+          price: item.unitPrice,
+        });
+      }
+
+      // Build payload for finaService submission
+      const payload: SaveDocProductOutDto = {
+        date: new Date().toISOString(),
+        purpose: `Online order ${order.uuid}`,
+        amount:
+          typeof order.subtotal === 'number' && Number.isFinite(order.subtotal)
+            ? order.subtotal
+            : products.reduce((sum, p) => sum + p.price * p.quantity, 0),
+        is_vat: true,
+        make_entry: true,
+        products,
+      };
+
+      console.log(payload, 'payload+++++++++++++++++');
+      // return;
+      // Call finaService to save the document
+      const response = await this.finaService.saveDocProductOut(payload);
+
+      console.log(response, 'response+++++++++++++++++');
+      // Save the response's document ID and reset error, update sync time
+      order.finaDocProductOutId =
+        typeof response?.id === 'number' ? response.id : undefined;
+      order.finaDocProductOutSyncedAt = new Date();
+      order.finaDocProductOutError = undefined;
+      await order.save();
+    } catch (error) {
+      console.log(error, 'error+++++++++++++++++');
+    }
+  }
 
   private async resolveRecipientEmail(
     order: OrderDocument,
@@ -323,6 +406,10 @@ export class OrdersService {
         if (!wasPaid) {
           order.status = OrderStatus.Paid;
           await order.save();
+
+          void this.syncFinaDocProductOut(order._id as Types.ObjectId).catch(
+            () => undefined,
+          );
 
           let to: string | null = order.email;
           if (!to) {
@@ -612,6 +699,12 @@ export class OrdersService {
 
       order.status = status;
       const saved = await order.save();
+
+      if (oldStatus !== OrderStatus.Paid && status === OrderStatus.Paid) {
+        void this.syncFinaDocProductOut(saved._id as Types.ObjectId).catch(
+          () => undefined,
+        );
+      }
 
       let to: string | null = saved.email;
       if (!to) {
