@@ -202,14 +202,14 @@ export class AdminService {
         },
         {
           secret: this.configService.get<string>('ADMIN_ACCESS_SECRET'),
-          expiresIn: '2m',
+          expiresIn: '59m',
         },
       );
 
       console.log(token, 'token from admin.service.ts on login');
 
       // Calculate expiration timestamp for access token
-      const tokenExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
+      const tokenExpiresAt = new Date(Date.now() + 59 * 60 * 1000);
 
       // Get admin without password for response
       const result = await this.adminModel
@@ -325,14 +325,14 @@ export class AdminService {
         },
         {
           secret: this.configService.get<string>('ADMIN_ACCESS_SECRET'),
-          expiresIn: '2m',
+          expiresIn: '59m',
         },
       );
 
       return {
         message: 'Token refreshed successfully',
         token: newToken,
-        tokenExpiresAt: new Date(Date.now() + 2 * 60 * 1000),
+        tokenExpiresAt: new Date(Date.now() + 59 * 60 * 1000),
         refreshToken: nextRefreshToken,
         admin,
       };
