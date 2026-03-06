@@ -5,4 +5,5 @@ export * from './create-category.dto';
 export * from './update-category.dto';
 export * from './create-child-category.dto';
 export * from './update-child-category.dto';
+export * from './set-child-category-group.dto';
 export * from './category-response.dto';

@@ -147,3 +147,36 @@ export class ChildCategoryResponseDto {
   })
   updatedAt: Date;
 }
+
+export class ChildCategoryGroupResponseDto {
+  @ApiProperty({
+    description: 'Brand ID',
+    example: '507f1f77bcf86cd799439011',
+  })
+  brandId: string;
+
+  @ApiProperty({
+    description: 'Category ID',
+    example: '507f1f77bcf86cd799439012',
+  })
+  categoryId: string;
+
+  @ApiProperty({
+    description: 'Child Category IDs assigned to this brand+category',
+    example: ['507f1f77bcf86cd799439013', '507f1f77bcf86cd799439014'],
+    type: [String],
+  })
+  childCategoryIds: string[];
+
+  @ApiProperty({
+    description: 'Creation date',
+    example: '2024-01-01T00:00:00.000Z',
+  })
+  createdAt: Date;
+
+  @ApiProperty({
+    description: 'Last update date',
+    example: '2024-01-01T00:00:00.000Z',
+  })
+  updatedAt: Date;
+}

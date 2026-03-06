@@ -31,6 +31,8 @@ import {
   BrandPublicResponseDto,
   CategoryResponseDto,
   ChildCategoryResponseDto,
+  ChildCategoryGroupResponseDto,
+  SetChildCategoryGroupDto,
 } from './dto';
 import { AdminAuthGuard } from '../guards/admin.guard';
 
@@ -314,6 +316,23 @@ export class CategoriesController {
       id,
       updateChildCategoryDto,
     );
+  }
+
+  @Post('child-categories/group')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Set child categories for brand + category (admin only)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Child category group updated successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'Brand/Category not found' })
+  setChildCategoryGroup(@Body() setGroupDto: SetChildCategoryGroupDto) {
+    return this.categoriesService.setChildCategoryGroup(setGroupDto);
   }
 
   @Delete('child-categories/:id')

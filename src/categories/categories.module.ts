@@ -8,6 +8,10 @@ import {
   ChildCategory,
   ChildCategorySchema,
 } from './entities/child-category.entity';
+import {
+  BrandCategoryChildGroup,
+  BrandCategoryChildGroupSchema,
+} from './entities/brand-category-child-group.entity';
 import { TranslationModule } from '../translation/translation.module';
 
 @Module({
@@ -16,6 +20,10 @@ import { TranslationModule } from '../translation/translation.module';
       { name: Brand.name, schema: BrandSchema },
       { name: Category.name, schema: CategorySchema },
       { name: ChildCategory.name, schema: ChildCategorySchema },
+      {
+        name: BrandCategoryChildGroup.name,
+        schema: BrandCategoryChildGroupSchema,
+      },
     ]),
     TranslationModule,
   ],

@@ -5,7 +5,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FlattenMaps, Model, ObjectId } from 'mongoose';
+import { FlattenMaps, HydratedDocument, Model, Types } from 'mongoose';
 import {
   Brand,
   BrandDocument,
@@ -14,6 +14,7 @@ import {
   ChildCategory,
   ChildCategoryDocument,
 } from './entities';
+import { BrandCategoryChildGroup } from './entities/brand-category-child-group.entity';
 import {
   CreateBrandDto,
   CreateCategoryDto,
@@ -38,6 +39,8 @@ export class CategoriesService {
     private categoryModel: Model<CategoryDocument>,
     @InjectModel(ChildCategory.name)
     private childCategoryModel: Model<ChildCategoryDocument>,
+    @InjectModel(BrandCategoryChildGroup.name)
+    private brandCategoryChildGroupModel: Model<BrandCategoryChildGroup>,
     private translationHelper: TranslationHelperService,
     private frontRevalidate: FrontRevalidateService,
   ) {}
@@ -201,6 +204,11 @@ export class CategoriesService {
       // Remove brand reference from all child categories that have this brand
       await this.childCategoryModel
         .updateMany({ brandIds: id }, { $pull: { brandIds: id } })
+        .exec();
+
+      // Remove brand-category child group mappings for this brand
+      await this.brandCategoryChildGroupModel
+        .deleteMany({ brandId: id })
         .exec();
 
       const result = await this.brandModel.findByIdAndDelete(id).exec();
@@ -386,6 +394,13 @@ export class CategoriesService {
               )
               .exec();
           }
+
+          await this.brandCategoryChildGroupModel
+            .deleteMany({
+              categoryId: id,
+              brandId: { $in: removedBrandIds },
+            })
+            .exec();
         }
       }
 
@@ -415,6 +430,11 @@ export class CategoriesService {
       // Remove categoryId reference from all child categories that have this categoryId
       await this.childCategoryModel
         .updateMany({ categoryId: id }, { $unset: { categoryId: '' } })
+        .exec();
+
+      // Remove brand-category child group mappings for this category
+      await this.brandCategoryChildGroupModel
+        .deleteMany({ categoryId: id })
         .exec();
 
       const result = await this.categoryModel.findByIdAndDelete(id).exec();
@@ -447,11 +467,112 @@ export class CategoriesService {
     }
   }
 
+  async setChildCategoryGroup(params: {
+    brandId: string;
+    categoryId: string;
+    childCategoryIds: string[];
+  }): Promise<HydratedDocument<BrandCategoryChildGroup>> {
+    try {
+      const { brandId, categoryId, childCategoryIds } = params;
+
+      const [brand, category] = await Promise.all([
+        this.brandModel.findById(brandId).exec(),
+        this.categoryModel.findById(categoryId).exec(),
+      ]);
+
+      if (!brand) {
+        throw new NotFoundException(`Brand with ID ${brandId} not found`);
+      }
+
+      if (!category) {
+        throw new NotFoundException(`Category with ID ${categoryId} not found`);
+      }
+
+      const uniqueIds = Array.from(
+        new Set((childCategoryIds || []).filter(Boolean)),
+      );
+
+      if (uniqueIds.length > 0) {
+        const existing = await this.childCategoryModel
+          .find({ _id: { $in: uniqueIds } })
+          .select('_id')
+          .exec();
+
+        if (existing.length !== uniqueIds.length) {
+          const foundIds = existing.map((c) => String(c._id));
+          const missingIds = uniqueIds.filter((id) => !foundIds.includes(id));
+          throw new NotFoundException(
+            `Child Category(s) with ID(s) ${missingIds.join(', ')} not found`,
+          );
+        }
+      }
+
+      const updated = await this.brandCategoryChildGroupModel
+        .findOneAndUpdate(
+          { brandId, categoryId },
+          { $set: { childCategoryIds: uniqueIds } },
+          { new: true, upsert: true },
+        )
+        .exec();
+
+      if (!updated) {
+        throw new BadRequestException(
+          'Failed to update child category group for brand and category',
+        );
+      }
+
+      void this.frontRevalidate.revalidateTags(FRONT_MENU_TAGS);
+
+      return updated;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new BadRequestException(
+        'Failed to update child category group for brand and category',
+      );
+    }
+  }
+
   async findChildCategoriesByBrandAndCategory(
     brandId: string,
     categoryId: string,
   ): Promise<ChildCategoryDocument[]> {
     try {
+      const group = await this.brandCategoryChildGroupModel
+        .findOne({ brandId, categoryId })
+        .lean()
+        .exec();
+
+      if (group && Array.isArray(group.childCategoryIds)) {
+        const groupIds = Array.from(
+          new Set(
+            group.childCategoryIds
+              .map((id) => {
+                if (id instanceof Types.ObjectId) return id.toHexString();
+                if (typeof id === 'string') return id;
+                return null;
+              })
+              .filter((id): id is string => Boolean(id)),
+          ),
+        );
+
+        if (groupIds.length === 0) {
+          return [];
+        }
+
+        return await this.childCategoryModel
+          .find({ _id: { $in: groupIds } })
+          .populate('brandIds', 'name slug')
+          .populate('categoryId', 'name slug')
+          .sort({ createdAt: -1 })
+          .exec();
+      }
+
       return await this.childCategoryModel
         .find({ brandIds: brandId, categoryId })
         .populate('brandIds', 'name slug')
@@ -630,6 +751,13 @@ export class CategoriesService {
       if (!result) {
         throw new NotFoundException(`Child category with ID ${id} not found`);
       }
+
+      await this.brandCategoryChildGroupModel
+        .updateMany(
+          { childCategoryIds: id },
+          { $pull: { childCategoryIds: id } },
+        )
+        .exec();
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
@@ -655,12 +783,17 @@ export class CategoriesService {
         lang = 'ka';
       }
 
-      const [brands, categories, childCategories]: [any[], any[], any[]] =
-        await Promise.all([
-          this.brandModel.find().lean().exec(),
-          this.categoryModel.find().lean().exec(),
-          this.childCategoryModel.find().lean().exec(),
-        ]);
+      const [brands, categories, childCategories, childCategoryGroups]: [
+        any[],
+        any[],
+        any[],
+        any[],
+      ] = await Promise.all([
+        this.brandModel.find().lean().exec(),
+        this.categoryModel.find().lean().exec(),
+        this.childCategoryModel.find().lean().exec(),
+        this.brandCategoryChildGroupModel.find().lean().exec(),
+      ]);
 
       const translateName = (
         name: LocalizedText | null | undefined,
@@ -691,6 +824,18 @@ export class CategoriesService {
         categories: MenuCategory[];
       };
 
+      const childCategoryById = new Map(
+        childCategories.map((child) => [String(child._id), child]),
+      );
+      const groupByKey = new Map<string, string[]>();
+      for (const group of childCategoryGroups) {
+        const key = `${String(group.brandId)}:${String(group.categoryId)}`;
+        const ids = Array.isArray(group.childCategoryIds)
+          ? group.childCategoryIds.map((id: unknown) => String(id))
+          : [];
+        groupByKey.set(key, ids);
+      }
+
       const menuBrands: MenuBrand[] = brands.map((brand) => {
         const brandId = String(brand._id);
 
@@ -705,19 +850,27 @@ export class CategoriesService {
           (category) => {
             const categoryId = String(category._id);
 
-            const relatedChildCategories = childCategories.filter((child) => {
-              const childBrandIds = (child.brandIds || []).map((id) =>
-                String(id),
-              );
-              const childCategoryId = child.categoryId
-                ? String(child.categoryId)
-                : null;
+            const groupKey = `${brandId}:${categoryId}`;
+            const groupIds = groupByKey.get(groupKey);
+            const relatedChildCategories = groupIds
+              ? groupIds
+                  .map((id): unknown => childCategoryById.get(id))
+                  .filter((child): child is Record<string, unknown> =>
+                    Boolean(child),
+                  )
+              : childCategories.filter((child) => {
+                  const childBrandIds = (child.brandIds || []).map((id) =>
+                    String(id),
+                  );
+                  const childCategoryId = child.categoryId
+                    ? String(child.categoryId)
+                    : null;
 
-              return (
-                childCategoryId === categoryId &&
-                childBrandIds.includes(brandId)
-              );
-            });
+                  return (
+                    childCategoryId === categoryId &&
+                    childBrandIds.includes(brandId)
+                  );
+                });
 
             const subCategories: MenuSubCategory[] = relatedChildCategories.map(
               (child) => ({
