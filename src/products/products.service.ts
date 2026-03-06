@@ -37,9 +37,9 @@ interface CategoryType extends Record<string, unknown> {
 }
 
 type ProductType = ProductDocument & {
-  brandId: CategoryType;
-  categoryId: CategoryType;
-  childCategoryId: CategoryType;
+  brandId?: CategoryType | Types.ObjectId | string | null;
+  categoryId?: CategoryType | Types.ObjectId | string | null;
+  childCategoryId?: CategoryType | Types.ObjectId | string | null;
 };
 
 @Injectable()
@@ -935,14 +935,38 @@ export class ProductsService {
   }
 
   private transformCategoryByLanguage(
-    category: FlattenMaps<{ name: LocalizedText; slug: string }>,
+    category: unknown,
     language: 'ka' | 'en',
-  ): { name: string; slug: string } {
-    const transformed = { ...category } as Record<string, unknown>;
-    transformed.name =
-      category.name?.[language] || category.name?.en || category.name?.ka;
-    transformed.slug = category.slug;
-    return transformed as { name: string; slug: string };
+  ): unknown {
+    // Mongoose populate can return `null` when referenced doc is missing.
+    // Also allow unpopulated ids (string/ObjectId) and pass them through.
+    if (category == null) return category;
+    if (typeof category !== 'object') return category;
+
+    const cat = category as Record<string, unknown>;
+
+    const nameVal = cat.name;
+    let localizedName: string | undefined;
+
+    if (typeof nameVal === 'string') {
+      localizedName = nameVal;
+    } else if (nameVal && typeof nameVal === 'object') {
+      const ln = nameVal as Record<string, unknown>;
+      const candidate = ln[language] ?? ln.en ?? ln.ka;
+      if (typeof candidate === 'string') localizedName = candidate;
+    }
+
+    const slugVal = cat.slug;
+    const slug = typeof slugVal === 'string' ? slugVal : undefined;
+
+    // If it doesn't look like a populated category shape, preserve as-is.
+    if (localizedName === undefined && slug === undefined) return category;
+
+    return {
+      ...cat,
+      ...(localizedName !== undefined ? { name: localizedName } : {}),
+      ...(slug !== undefined ? { slug } : {}),
+    };
   }
 
   /**
