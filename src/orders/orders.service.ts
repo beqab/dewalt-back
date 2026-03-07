@@ -614,7 +614,10 @@ export class OrdersService {
       }
 
       const skip = (page - 1) * limit;
-      const total = await this.orderModel.countDocuments(filter);
+      const total = await this.orderModel.countDocuments({
+        ...filter,
+        status: { $nin: [OrderStatus.Failed, OrderStatus.Pending] },
+      });
 
       let lang: 'ka' | 'en' = 'ka';
       try {
@@ -626,7 +629,7 @@ export class OrdersService {
       const orders = await this.orderModel
         .find({
           ...filter,
-          status: { $nin: [OrderStatus.Failed, OrderStatus.Pending] }, // Exclude both enum and string status values for resilience
+          status: { $nin: [OrderStatus.Failed, OrderStatus.Pending] },
         })
         .lean()
         .skip(skip)
