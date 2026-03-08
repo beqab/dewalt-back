@@ -200,7 +200,7 @@ export class FinaService {
       return (await response.json()) as TResponse;
     } catch (error) {
       console.log(error, 'error+++');
-      throw error;
+      throw new BadRequestException(error);
     }
   }
 
@@ -292,7 +292,7 @@ export class FinaService {
       return response;
     } catch (error) {
       console.log(error, 'error+++');
-      throw error;
+      throw new BadRequestException(error);
     }
   }
 
