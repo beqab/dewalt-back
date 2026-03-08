@@ -112,6 +112,13 @@ export class FinaService {
       },
       body: JSON.stringify({ login: this.apiUser, password: this.password }),
     });
+    console.log(
+      this.apiUser,
+      this.password,
+      'this.apiUser<insert> from getToken',
+    );
+    console.log(this.password, 'this.password+++ from getToken');
+    console.log(response, 'response+++ from getToken');
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       throw new BadRequestException({
@@ -140,12 +147,17 @@ export class FinaService {
   }
 
   private async buildRequestHeaders(): Promise<Record<string, string>> {
-    if (this.authMode === 'none') return {};
-    if (this.authMode === 'basic') return this.buildAuthHeaders();
-    if (this.authMode === 'query') return {};
-    // token
-    const token = await this.getToken();
-    return { Authorization: `Bearer ${token}` };
+    try {
+      if (this.authMode === 'none') return {};
+      if (this.authMode === 'basic') return this.buildAuthHeaders();
+      if (this.authMode === 'query') return {};
+      // token
+      const token = await this.getToken();
+      return { Authorization: `Bearer ${token}` };
+    } catch (error) {
+      console.log(error, 'error+++ from buildRequestHeaders');
+      throw new BadRequestException(error);
+    }
   }
 
   private buildAuthQuery(): Record<string, string> {
