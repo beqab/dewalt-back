@@ -124,28 +124,33 @@ export class FinaService {
         this.password,
         'this.apiUser<insert> from before  response = await fetch(url',
       );
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
+      const response = await axios.post(
+        url.toString(),
+        { login: this.apiUser, password: this.password },
+        {
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          validateStatus: () => true,
         },
-        body: JSON.stringify({ login: this.apiUser, password: this.password }),
-      });
+      );
       console.log('this.apiUser<insert> from getToken after');
       console.log(this.password, 'this.password+++ from getToken');
       console.log(response, 'response+++ from getToken');
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
+      if (response.status < 200 || response.status >= 300) {
+        const data = response.data as unknown;
+        const details =
+          typeof data === 'string' ? data : data ? JSON.stringify(data) : '';
         throw new BadRequestException({
           message: 'FINA authenticate request failed',
           statusCode: response.status,
           url: this.toSafeUrlString(url),
-          details: text || response.statusText,
+          details: details || response.statusText,
         });
       }
 
-      const json = (await response.json()) as { token?: string; ex?: unknown };
+      const json = response.data as { token?: string; ex?: unknown };
       const token = json?.token;
       if (!token) {
         throw new BadRequestException({
@@ -206,14 +211,16 @@ export class FinaService {
         console.log('doRequest<insert> atart');
         const authHeaders = await this.buildRequestHeaders();
         console.log(authHeaders, 'authHeaders+++');
-        return await fetch(url, {
+        return await axios.request({
+          url: url.toString(),
           method: args.method,
           headers: {
             Accept: 'application/json',
             ...(args.body ? { 'Content-Type': 'application/json' } : {}),
             ...authHeaders,
           },
-          body: args.body ? JSON.stringify(args.body) : undefined,
+          data: args.body ? args.body : undefined,
+          validateStatus: () => true,
         });
       };
       console.log('doRequest<insert>');
@@ -225,17 +232,19 @@ export class FinaService {
 
       console.log(response, 'response+++ from requestJson');
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
+      if (response.status < 200 || response.status >= 300) {
+        const data = response.data as unknown;
+        const details =
+          typeof data === 'string' ? data : data ? JSON.stringify(data) : '';
         throw new BadRequestException({
           message: 'FINA request failed',
           statusCode: response.status,
           url: this.toSafeUrlString(url),
-          details: text || response.statusText,
+          details: details || response.statusText,
         });
       }
 
-      return (await response.json()) as TResponse;
+      return response.data as TResponse;
     } catch (error) {
       console.log(error, 'error+++ from requestJson');
       throw new BadRequestException(error);
