@@ -49,11 +49,13 @@ export class FinaService {
   }
 
   private buildUrl(pathOrUrl: string, query?: Record<string, string>) {
+    console.log('buildUrl+++ pathOrUrl', pathOrUrl);
     const raw = pathOrUrl.trim();
     if (!raw) {
+      console.log('buildUrl+++ raw is not configured');
       throw new BadRequestException('FINA endpoint path/url is not configured');
     }
-
+    console.log('buildUrl+++ raw', raw);
     const url =
       raw.startsWith('http://') || raw.startsWith('https://')
         ? new URL(raw)
@@ -110,7 +112,9 @@ export class FinaService {
     }
 
     // FINA docs: POST api/authentication/authenticate with { login, password }
+    console.log('getToken+++ before buildUrl');
     const url = this.buildUrl(this.authPath);
+    console.log('getToken+++ url', url);
     const response = await fetch(url, {
       method: 'POST',
       headers: {
