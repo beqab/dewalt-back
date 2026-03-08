@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import { SaveDocProductOutDto } from './dto/save-doc-product-out.dto';
 import { GetProductsRestResponseDto } from './dto/get-products-rest.response.dto';
 
@@ -433,34 +434,36 @@ export class FinaService {
    * Basic connectivity check. This endpoint does not require auth on some deployments.
    */
   async getApiInfoNoAuth(): Promise<unknown> {
+    let url: URL | null = null;
     try {
       if (!this.baseUrl) {
         throw new BadRequestException('Missing FINA_BASE_URL');
       }
 
-      const url = this.buildUrl('/api/info/GetApiInfo');
+      url = this.buildUrl('/api/info/GetApiInfo');
       console.log(url, 'url+++ from getApiInfoNoAuth');
 
-      const response = await fetch(url, {
-        method: 'GET',
+      const response = await axios.get(url.toString(), {
         headers: {
           Accept: 'application/json',
         },
       });
 
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        throw new BadRequestException({
-          message: 'FINA request failed',
-          statusCode: response.status,
-          url: this.toSafeUrlString(url),
-          details: text || response.statusText,
-        });
-      }
-
-      return await response.json();
+      return response.data;
     } catch (error) {
       console.log(error, 'error+++ from getApiInfoNoAuth');
+      if (axios.isAxiosError(error)) {
+        const statusCode = error.response?.status;
+        const data = error.response?.data as unknown;
+        const details =
+          typeof data === 'string' ? data : data ? JSON.stringify(data) : '';
+        throw new BadRequestException({
+          message: 'FINA request failed',
+          statusCode: statusCode ?? 500,
+          url: url ? this.toSafeUrlString(url) : undefined,
+          details: details || error.message,
+        });
+      }
       throw new BadRequestException(error);
     }
   }
