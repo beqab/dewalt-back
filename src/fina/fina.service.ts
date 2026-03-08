@@ -469,6 +469,18 @@ export class FinaService {
         validateStatus: () => true,
       });
 
+      if (response.status < 200 || response.status >= 300) {
+        const data = response.data as unknown;
+        const details =
+          typeof data === 'string' ? data : data ? JSON.stringify(data) : '';
+        throw new BadRequestException({
+          message: 'FINA request failed',
+          statusCode: response.status,
+          url: this.toSafeUrlString(url),
+          details: details || response.statusText,
+        });
+      }
+
       return response.data;
     } catch (error) {
       console.log(error, 'error+++ from getApiInfoNoAuth');
