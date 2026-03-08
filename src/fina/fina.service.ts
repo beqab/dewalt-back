@@ -95,10 +95,16 @@ export class FinaService {
     }
 
     if (!this.baseUrl) {
+      console.log('Missing FINA_BASE_URL');
       throw new BadRequestException('Missing FINA_BASE_URL');
     }
 
     if (!this.apiUser || !this.password) {
+      console.log(
+        this.apiUser,
+        this.password,
+        'Missing FINA_API_USER / FINA_PASSWORD',
+      );
       throw new BadRequestException('Missing FINA_API_USER / FINA_PASSWORD');
     }
 
