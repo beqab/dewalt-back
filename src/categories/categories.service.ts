@@ -79,6 +79,20 @@ export class CategoriesService {
         .lean()
         .exec();
 
+      const getBrandPriority = (slug?: string | null) => {
+        const value = (slug || '').toLowerCase();
+        if (value.includes('dewalt')) return 0;
+        if (value.includes('stanley')) return 1;
+        return 2;
+      };
+
+      brands.sort((a, b) => {
+        const priorityDiff =
+          getBrandPriority(a.slug) - getBrandPriority(b.slug);
+        if (priorityDiff !== 0) return priorityDiff;
+        return 0;
+      });
+
       return brands.map((brand) => ({
         _id: brand._id,
         name: translateName(brand.name as LocalizedText),
@@ -897,6 +911,7 @@ export class CategoriesService {
         };
       });
 
+      console.log(menuBrands, 'menuBrands+++ from getMenuData');
       return menuBrands;
     } catch (error) {
       throw new BadRequestException('Failed to fetch menu data');

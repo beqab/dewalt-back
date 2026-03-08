@@ -194,12 +194,27 @@ export class ProductsService {
       const brands = await this.brandModel
         .find()
         .sort({ createdAt: -1 })
-        .limit(brandLimit)
         .lean()
         .exec();
 
+      const getBrandPriority = (slug?: string | null) => {
+        const value = (slug || '').toLowerCase();
+        if (value.includes('dewalt')) return 0;
+        if (value.includes('stanley')) return 1;
+        return 2;
+      };
+
+      brands.sort((a, b) => {
+        const priorityDiff =
+          getBrandPriority(a.slug) - getBrandPriority(b.slug);
+        if (priorityDiff !== 0) return priorityDiff;
+        return 0;
+      });
+
+      const limitedBrands = brands.slice(0, brandLimit);
+
       const sliders = await Promise.all(
-        brands.map(async (brand) => {
+        limitedBrands.map(async (brand) => {
           const products = (await this.productModel
             .find({ brandId: brand._id })
             .populate('brandId', 'name slug')
