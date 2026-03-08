@@ -49,6 +49,13 @@ export class FinaService {
     return 'token';
   }
 
+  private get requestTimeoutMs(): number {
+    const raw =
+      Number(this.configService.get<string>('FINA_TIMEOUT_MS')) || 10000;
+    if (Number.isFinite(raw) && raw > 0) return raw;
+    return 10000;
+  }
+
   private buildUrl(pathOrUrl: string, query?: Record<string, string>) {
     console.log('buildUrl+++ pathOrUrl', pathOrUrl);
     const raw = pathOrUrl.trim();
@@ -132,6 +139,7 @@ export class FinaService {
             Accept: 'application/json',
             'Content-Type': 'application/json',
           },
+          timeout: this.requestTimeoutMs,
           validateStatus: () => true,
         },
       );
@@ -220,6 +228,7 @@ export class FinaService {
             ...authHeaders,
           },
           data: args.body ? args.body : undefined,
+          timeout: this.requestTimeoutMs,
           validateStatus: () => true,
         });
       };
@@ -456,6 +465,8 @@ export class FinaService {
         headers: {
           Accept: 'application/json',
         },
+        timeout: this.requestTimeoutMs,
+        validateStatus: () => true,
       });
 
       return response.data;
