@@ -167,9 +167,10 @@ export class FinaService {
       }
 
       const url = this.buildUrl(args.endpoint, this.buildAuthQuery());
-
+      console.log(url, 'url+++');
       const doRequest = async () => {
         const authHeaders = await this.buildRequestHeaders();
+        console.log(authHeaders, 'authHeaders+++');
         return await fetch(url, {
           method: args.method,
           headers: {
@@ -187,6 +188,8 @@ export class FinaService {
         response = await doRequest();
       }
 
+      console.log(response, 'response+++ from requestJson');
+
       if (!response.ok) {
         const text = await response.text().catch(() => '');
         throw new BadRequestException({
@@ -199,7 +202,7 @@ export class FinaService {
 
       return (await response.json()) as TResponse;
     } catch (error) {
-      console.log(error, 'error+++');
+      console.log(error, 'error+++ from requestJson');
       throw new BadRequestException(error);
     }
   }
