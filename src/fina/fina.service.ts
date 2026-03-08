@@ -69,6 +69,8 @@ export class FinaService {
       }
     }
 
+    console.log('buildUrl+++ url', url);
+
     return url;
   }
 
@@ -115,6 +117,11 @@ export class FinaService {
     console.log('getToken+++ before buildUrl');
     const url = this.buildUrl(this.authPath);
     console.log('getToken+++ url', url);
+    console.log(
+      this.apiUser,
+      this.password,
+      'this.apiUser<insert> from getToken',
+    );
     const response = await fetch(url, {
       method: 'POST',
       headers: {
