@@ -89,11 +89,12 @@ export class FinaService {
   }
 
   private async getToken(): Promise<string> {
+    console.log('getToken<insert> start');
     const now = Date.now();
     if (this.cachedToken && this.cachedToken.expiresAtMs > now) {
       return this.cachedToken.value;
     }
-
+    console.log('getToken+++ before baseUrl');
     if (!this.baseUrl) {
       console.log('Missing FINA_BASE_URL');
       throw new BadRequestException('Missing FINA_BASE_URL');
@@ -154,10 +155,12 @@ export class FinaService {
 
   private async buildRequestHeaders(): Promise<Record<string, string>> {
     try {
+      console.log('buildRequestHeaders<insert> start2');
       if (this.authMode === 'none') return {};
       if (this.authMode === 'basic') return this.buildAuthHeaders();
       if (this.authMode === 'query') return {};
       // token
+      console.log('buildRequestHeaders<insert> getToken');
       const token = await this.getToken();
       return { Authorization: `Bearer ${token}` };
     } catch (error) {
@@ -187,6 +190,7 @@ export class FinaService {
       const url = this.buildUrl(args.endpoint, this.buildAuthQuery());
       console.log(url, 'url+++');
       const doRequest = async () => {
+        console.log('doRequest<insert> atart');
         const authHeaders = await this.buildRequestHeaders();
         console.log(authHeaders, 'authHeaders+++');
         return await fetch(url, {
@@ -199,7 +203,7 @@ export class FinaService {
           body: args.body ? JSON.stringify(args.body) : undefined,
         });
       };
-
+      console.log('doRequest<insert>');
       let response = await doRequest();
       if (response.status === 401 && this.authMode === 'token') {
         this.cachedToken = null;
