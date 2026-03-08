@@ -93,75 +93,76 @@ export class FinaService {
   }
 
   private async getToken(): Promise<string> {
-    console.log('getToken<insert> start');
-    const now = Date.now();
-    if (this.cachedToken && this.cachedToken.expiresAtMs > now) {
-      return this.cachedToken.value;
-    }
-    console.log('getToken+++ before baseUrl');
-    if (!this.baseUrl) {
-      console.log('Missing FINA_BASE_URL');
-      throw new BadRequestException('Missing FINA_BASE_URL');
-    }
+    try {
+      console.log('getToken<insert> start');
+      const now = Date.now();
+      if (this.cachedToken && this.cachedToken.expiresAtMs > now) {
+        return this.cachedToken.value;
+      }
+      console.log('getToken+++ before baseUrl');
+      if (!this.baseUrl) {
+        console.log('Missing FINA_BASE_URL');
+        throw new BadRequestException('Missing FINA_BASE_URL');
+      }
 
-    if (!this.apiUser || !this.password) {
+      if (!this.apiUser || !this.password) {
+        console.log(
+          this.apiUser,
+          this.password,
+          'Missing FINA_API_USER / FINA_PASSWORD',
+        );
+        throw new BadRequestException('Missing FINA_API_USER / FINA_PASSWORD');
+      }
+
+      // FINA docs: POST api/authentication/authenticate with { login, password }
+      console.log('getToken+++ from get token');
+      const url = this.buildUrl(this.authPath);
+      console.log('getToken+++ url', url);
       console.log(
         this.apiUser,
         this.password,
-        'Missing FINA_API_USER / FINA_PASSWORD',
+        'this.apiUser<insert> from before  response = await fetch(url',
       );
-      throw new BadRequestException('Missing FINA_API_USER / FINA_PASSWORD');
-    }
-
-    // FINA docs: POST api/authentication/authenticate with { login, password }
-    console.log('getToken+++ before buildUrl');
-    const url = this.buildUrl(this.authPath);
-    console.log('getToken+++ url', url);
-    console.log(
-      this.apiUser,
-      this.password,
-      'this.apiUser<insert> from getToken',
-    );
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ login: this.apiUser, password: this.password }),
-    });
-    console.log(
-      this.apiUser,
-      this.password,
-      'this.apiUser<insert> from getToken',
-    );
-    console.log(this.password, 'this.password+++ from getToken');
-    console.log(response, 'response+++ from getToken');
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new BadRequestException({
-        message: 'FINA authenticate request failed',
-        statusCode: response.status,
-        url: this.toSafeUrlString(url),
-        details: text || response.statusText,
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ login: this.apiUser, password: this.password }),
       });
-    }
+      console.log('this.apiUser<insert> from getToken after');
+      console.log(this.password, 'this.password+++ from getToken');
+      console.log(response, 'response+++ from getToken');
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new BadRequestException({
+          message: 'FINA authenticate request failed',
+          statusCode: response.status,
+          url: this.toSafeUrlString(url),
+          details: text || response.statusText,
+        });
+      }
 
-    const json = (await response.json()) as { token?: string; ex?: unknown };
-    const token = json?.token;
-    if (!token) {
-      throw new BadRequestException({
-        message: 'FINA authenticate did not return token',
-        url: this.toSafeUrlString(url),
-      });
-    }
+      const json = (await response.json()) as { token?: string; ex?: unknown };
+      const token = json?.token;
+      if (!token) {
+        throw new BadRequestException({
+          message: 'FINA authenticate did not return token',
+          url: this.toSafeUrlString(url),
+        });
+      }
 
-    // Docs mention ~36h validity; default to 35h to be safe.
-    const ttlHours =
-      Number(this.configService.get<string>('FINA_TOKEN_TTL_HOURS')) || 35;
-    const expiresAtMs = now + ttlHours * 60 * 60 * 1000;
-    this.cachedToken = { value: token, expiresAtMs };
-    return token;
+      // Docs mention ~36h validity; default to 35h to be safe.
+      const ttlHours =
+        Number(this.configService.get<string>('FINA_TOKEN_TTL_HOURS')) || 35;
+      const expiresAtMs = now + ttlHours * 60 * 60 * 1000;
+      this.cachedToken = { value: token, expiresAtMs };
+      return token;
+    } catch (error) {
+      console.log(error, 'error+++ from getToken');
+      throw new BadRequestException(error);
+    }
   }
 
   private async buildRequestHeaders(): Promise<Record<string, string>> {
