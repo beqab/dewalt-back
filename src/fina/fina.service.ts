@@ -432,6 +432,42 @@ export class FinaService {
   /**
    * Basic connectivity check. This endpoint does not require auth on some deployments.
    */
+  async getApiInfoNoAuth(): Promise<unknown> {
+    try {
+      if (!this.baseUrl) {
+        throw new BadRequestException('Missing FINA_BASE_URL');
+      }
+
+      const url = this.buildUrl('/api/info/GetApiInfo');
+      console.log(url, 'url+++ from getApiInfoNoAuth');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new BadRequestException({
+          message: 'FINA request failed',
+          statusCode: response.status,
+          url: this.toSafeUrlString(url),
+          details: text || response.statusText,
+        });
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.log(error, 'error+++ from getApiInfoNoAuth');
+      throw new BadRequestException(error);
+    }
+  }
+
+  /**
+   * Basic connectivity check. This endpoint does not require auth on some deployments.
+   */
   async getApiInfo(): Promise<unknown> {
     if (!this.baseUrl) {
       throw new BadRequestException('Missing FINA_BASE_URL');

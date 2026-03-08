@@ -17,7 +17,7 @@ export class FinaController {
     description: 'FINA api info response (raw)',
   })
   getApiInfo() {
-    return this.finaService.getApiInfo();
+    return this.finaService.getApiInfoNoAuth();
   }
 
   @Get('products')
