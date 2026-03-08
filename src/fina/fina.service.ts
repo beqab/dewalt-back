@@ -161,42 +161,47 @@ export class FinaService {
     method: 'GET' | 'POST';
     body?: unknown;
   }): Promise<TResponse> {
-    if (!args.endpoint) {
-      throw new BadRequestException('FINA endpoint is not configured');
+    try {
+      if (!args.endpoint) {
+        throw new BadRequestException('FINA endpoint is not configured');
+      }
+
+      const url = this.buildUrl(args.endpoint, this.buildAuthQuery());
+
+      const doRequest = async () => {
+        const authHeaders = await this.buildRequestHeaders();
+        return await fetch(url, {
+          method: args.method,
+          headers: {
+            Accept: 'application/json',
+            ...(args.body ? { 'Content-Type': 'application/json' } : {}),
+            ...authHeaders,
+          },
+          body: args.body ? JSON.stringify(args.body) : undefined,
+        });
+      };
+
+      let response = await doRequest();
+      if (response.status === 401 && this.authMode === 'token') {
+        this.cachedToken = null;
+        response = await doRequest();
+      }
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new BadRequestException({
+          message: 'FINA request failed',
+          statusCode: response.status,
+          url: this.toSafeUrlString(url),
+          details: text || response.statusText,
+        });
+      }
+
+      return (await response.json()) as TResponse;
+    } catch (error) {
+      console.log(error, 'error+++');
+      throw error;
     }
-
-    const url = this.buildUrl(args.endpoint, this.buildAuthQuery());
-
-    const doRequest = async () => {
-      const authHeaders = await this.buildRequestHeaders();
-      return await fetch(url, {
-        method: args.method,
-        headers: {
-          Accept: 'application/json',
-          ...(args.body ? { 'Content-Type': 'application/json' } : {}),
-          ...authHeaders,
-        },
-        body: args.body ? JSON.stringify(args.body) : undefined,
-      });
-    };
-
-    let response = await doRequest();
-    if (response.status === 401 && this.authMode === 'token') {
-      this.cachedToken = null;
-      response = await doRequest();
-    }
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => '');
-      throw new BadRequestException({
-        message: 'FINA request failed',
-        statusCode: response.status,
-        url: this.toSafeUrlString(url),
-        details: text || response.statusText,
-      });
-    }
-
-    return (await response.json()) as TResponse;
   }
 
   /**
@@ -278,11 +283,17 @@ export class FinaService {
   async getProductsRestArray(
     prods: number[],
   ): Promise<GetProductsRestResponseDto> {
-    return await this.requestJson<GetProductsRestResponseDto>({
-      endpoint: '/api/operation/getProductsRestArray',
-      method: 'POST',
-      body: { prods },
-    });
+    try {
+      const response = await this.requestJson<GetProductsRestResponseDto>({
+        endpoint: '/api/operation/getProductsRestArray',
+        method: 'POST',
+        body: { prods },
+      });
+      return response;
+    } catch (error) {
+      console.log(error, 'error+++');
+      throw error;
+    }
   }
 
   /**
