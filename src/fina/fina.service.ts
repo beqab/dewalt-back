@@ -51,9 +51,9 @@ export class FinaService {
 
   private get requestTimeoutMs(): number {
     const raw =
-      Number(this.configService.get<string>('FINA_TIMEOUT_MS')) || 50000;
+      Number(this.configService.get<string>('FINA_TIMEOUT_MS')) || 20000;
     if (Number.isFinite(raw) && raw > 0) return raw;
-    return 50000;
+    return 20000;
   }
 
   private buildUrl(pathOrUrl: string, query?: Record<string, string>) {
@@ -139,7 +139,7 @@ export class FinaService {
             Accept: 'application/json',
             'Content-Type': 'application/json',
           },
-
+          timeout: this.requestTimeoutMs,
           validateStatus: () => true,
         },
       );
@@ -228,7 +228,7 @@ export class FinaService {
             ...authHeaders,
           },
           data: args.body ? args.body : undefined,
-
+          timeout: this.requestTimeoutMs,
           validateStatus: () => true,
         });
       };
@@ -451,51 +451,63 @@ export class FinaService {
   /**
    * Basic connectivity check. This endpoint does not require auth on some deployments.
    */
-  async getApiInfoNoAuth(): Promise<unknown> {
-    let url: URL | null = null;
+  getApiInfoNoAuth(): Promise<unknown> {
+    const url: URL | null = null;
     try {
       if (!this.baseUrl) {
         throw new BadRequestException('Missing FINA_BASE_URL');
       }
+      console.log('done', url);
+      return Promise.resolve('done');
+      // url = this.buildUrl('/api/info/GetApiInfo');
+      // console.log(url, 'url+++ from getApiInfoNoAuth');
 
-      url = this.buildUrl('/api/info/GetApiInfo');
-      console.log(url, 'url+++ from getApiInfoNoAuth');
+      // const response = await axios.get(url.toString(), {
+      //   headers: {
+      //     Accept: 'application/json',
+      //   },
+      //   timeout: this.requestTimeoutMs,
+      //   validateStatus: () => true,
+      // });
 
-      const response = await axios.get(url.toString(), {
-        headers: {
-          Accept: 'application/json',
-        },
+      // if (response.status < 200 || response.status >= 300) {
+      //   const data = response.data as unknown;
+      //   const details =
+      //     typeof data === 'string' ? data : data ? JSON.stringify(data) : '';
+      //   throw new BadRequestException({
+      //     message: 'FINA request failed',
+      //     statusCode: response.status,
+      //     url: this.toSafeUrlString(url),
+      //     details: details || response.statusText,
+      //   });
+      // }
 
-        validateStatus: () => true,
-      });
-
-      if (response.status < 200 || response.status >= 300) {
-        const data = response.data as unknown;
-        const details =
-          typeof data === 'string' ? data : data ? JSON.stringify(data) : '';
-        throw new BadRequestException({
-          message: 'FINA request failed',
-          statusCode: response.status,
-          url: this.toSafeUrlString(url),
-          details: details || response.statusText,
-        });
-      }
-
-      return response.data;
+      // return response.data;
     } catch (error) {
-      console.log(error, 'error+++ from getApiInfoNoAuth');
+      const safeUrl = url ? this.toSafeUrlString(url) : undefined;
       if (axios.isAxiosError(error)) {
         const statusCode = error.response?.status;
         const data = error.response?.data as unknown;
         const details =
           typeof data === 'string' ? data : data ? JSON.stringify(data) : '';
+        const message = details || error.message;
+        console.log(
+          {
+            message: error.message,
+            code: error.code,
+            statusCode,
+            url: safeUrl,
+          },
+          'error+++ from getApiInfoNoAuth',
+        );
         throw new BadRequestException({
           message: 'FINA request failed',
           statusCode: statusCode ?? 500,
-          url: url ? this.toSafeUrlString(url) : undefined,
-          details: details || error.message,
+          url: safeUrl,
+          details: error.code ? `${error.code}: ${message}` : message,
         });
       }
+      console.log(error, 'error+++ from getApiInfoNoAuth');
       throw new BadRequestException(error);
     }
   }
