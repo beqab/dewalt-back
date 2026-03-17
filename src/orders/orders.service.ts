@@ -33,6 +33,8 @@ type PaymentRequestParams = {
   order_id: string;
   response_url: string;
   server_callback_url: string;
+  // payment_method: string;
+  // payment_systems: string;
 };
 
 type PaymentCallbackPayload = {
@@ -319,6 +321,9 @@ export class OrdersService {
       currency: 'GEL',
       lang: resolvedLocale,
       merchant_id: process.env.FLITT_MERCHANT_ID,
+
+      // payment_systems: 'installments',
+      // payment_method: 'x',
       order_desc: 'Order payment',
       order_id: orderId,
       // response_url: `${process.env.FRONT_URL}ka/payment-status?orderId=${orderId}`,
@@ -530,7 +535,14 @@ export class OrdersService {
       if (id) {
         const trimmed = String(id).trim();
         if (!Types.ObjectId.isValid(trimmed)) {
-          throw new BadRequestException('Invalid order id format');
+          return {
+            data: [],
+            total: 0,
+            page: Number(page),
+            limit: Number(limit),
+            pages: 0,
+            totalPages: 0,
+          };
         }
         filter._id = new Types.ObjectId(trimmed);
       }
