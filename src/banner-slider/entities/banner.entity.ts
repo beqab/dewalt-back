@@ -21,12 +21,12 @@ export class BannerSlider {
       {
         imageUrl: { type: String, required: true },
         title: {
-          ka: { type: String, required: true },
-          en: { type: String, required: true },
+          ka: { type: String, required: false },
+          en: { type: String, required: false },
         },
         description: {
-          ka: { type: String, required: true },
-          en: { type: String, required: true },
+          ka: { type: String, required: false },
+          en: { type: String, required: false },
         },
         order: { type: Number, required: true },
         buttonLink: { type: String, required: false },

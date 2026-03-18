@@ -34,7 +34,7 @@ import { ProductDocument } from './entities';
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  @Get('admin/sync-fina-quantities')
+  @Post('admin/sync-fina-quantities')
   // @UseGuards(AdminAuthGuard)
   // @ApiBearerAuth()
   @ApiOperation({

@@ -240,8 +240,8 @@ export class OrdersService {
         );
       }
 
-      const unitPrice = product.price;
-      const lineTotal = unitPrice * item.quantity;
+      const unitPrice = Math.round(product.price * 100) / 100;
+      const lineTotal = Math.round(unitPrice * item.quantity * 100) / 100;
       return {
         productId: new Types.ObjectId(item.productId),
         // Snapshot product fields at order time so the order remains readable
@@ -255,7 +255,10 @@ export class OrdersService {
       };
     });
 
-    const subtotal = orderItems.reduce((sum, item) => sum + item.lineTotal, 0);
+    const subtotal =
+      Math.round(
+        orderItems.reduce((sum, item) => sum + item.lineTotal, 0) * 100,
+      ) / 100;
     const settings = await this.settingsService.getSettings();
     const freeDeliveryEnabled = settings.freeDeliveryEnabled !== false;
 
@@ -275,7 +278,7 @@ export class OrdersService {
       deliveryPrice =
         typeof freeOver === 'number' && subtotal >= freeOver ? 0 : fee;
     }
-    const total = subtotal + deliveryPrice;
+    const total = Math.round((subtotal + deliveryPrice) * 100) / 100;
 
     const orderCode = await this.generateUniqueOrderCode();
 
@@ -521,41 +524,51 @@ export class OrdersService {
     try {
       const { page = 1, limit = 10, status, userId, id, uuid, email } = query;
 
-      const filter: Record<string, unknown> = {};
-      if (status) {
-        filter.status = status;
-      } else {
-        filter.status = {
-          $nin: [OrderStatus.Pending, OrderStatus.Failed],
-        };
-      }
-      if (userId) {
-        filter.userId = userId;
-      }
-      if (id) {
-        const trimmed = String(id).trim();
-        if (!Types.ObjectId.isValid(trimmed)) {
-          return {
-            data: [],
-            total: 0,
-            page: Number(page),
-            limit: Number(limit),
-            pages: 0,
-            totalPages: 0,
-          };
-        }
-        filter._id = new Types.ObjectId(trimmed);
+      const idRaw = id ? String(id).trim() : '';
+      const uuidRaw = uuid ? String(uuid).trim() : '';
+      const uuidIsObjectId = uuidRaw ? Types.ObjectId.isValid(uuidRaw) : false;
+      const identifierFilters: Record<string, unknown>[] = [];
+
+      if (idRaw && Types.ObjectId.isValid(idRaw)) {
+        identifierFilters.push({ _id: new Types.ObjectId(idRaw) });
       }
 
-      const uuidFilter = uuid
-        ? this.buildCaseInsensitiveContains(String(uuid))
-        : undefined;
+      if (uuidRaw) {
+        if (uuidIsObjectId) {
+          identifierFilters.push({ _id: new Types.ObjectId(uuidRaw) });
+          identifierFilters.push({ uuid: uuidRaw });
+        } else {
+          const uuidFilter = this.buildCaseInsensitiveContains(uuidRaw);
+          if (uuidFilter) {
+            identifierFilters.push({ uuid: uuidFilter });
+          }
+        }
+      }
+
       const emailFilter = email
         ? this.buildCaseInsensitiveContains(String(email))
         : undefined;
 
-      if (uuidFilter) {
-        filter.uuid = uuidFilter;
+      const filterParts: Record<string, unknown>[] = [];
+
+      if (status) {
+        filterParts.push({ status });
+      } else if (identifierFilters.length === 0) {
+        filterParts.push({
+          status: {
+            $nin: [OrderStatus.Pending, OrderStatus.Failed],
+          },
+        });
+      }
+
+      if (userId) {
+        filterParts.push({ userId });
+      }
+
+      if (identifierFilters.length === 1) {
+        filterParts.push(identifierFilters[0]);
+      } else if (identifierFilters.length > 1) {
+        filterParts.push({ $or: identifierFilters });
       }
 
       if (emailFilter) {
@@ -568,11 +581,20 @@ export class OrdersService {
           String((u as { _id: unknown })._id),
         );
 
-        filter.$or = [
-          { email: emailFilter },
-          ...(ids.length > 0 ? [{ userId: { $in: ids } }] : []),
-        ];
+        filterParts.push({
+          $or: [
+            { email: emailFilter },
+            ...(ids.length > 0 ? [{ userId: { $in: ids } }] : []),
+          ],
+        });
       }
+
+      const filter =
+        filterParts.length > 0
+          ? filterParts.length === 1
+            ? filterParts[0]
+            : { $and: filterParts }
+          : {};
 
       const skip = (page - 1) * limit;
       const total = await this.orderModel.countDocuments(filter);

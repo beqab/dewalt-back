@@ -9,12 +9,12 @@ import {
 
 export class LocalizedTextDto {
   @ApiProperty({ example: 'Some Georgian text' })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   ka: string;
 
   @ApiProperty({ example: 'Some English text' })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   en: string;
 }
@@ -24,7 +24,7 @@ export class CreateBannerDto {
     description: 'Banner image URL',
     example: 'https://example.com/banner.jpg',
   })
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
   imageUrl: string;
 
@@ -32,7 +32,7 @@ export class CreateBannerDto {
     description: 'Banner title (localized)',
     example: { ka: 'ზაფხულის ფასდაკლება', en: 'Summer Sale' },
   })
-  @IsNotEmpty()
+  @IsOptional()
   title: LocalizedTextDto;
 
   @ApiProperty({
@@ -42,7 +42,7 @@ export class CreateBannerDto {
       en: 'Get up to 30% off on all products',
     },
   })
-  @IsNotEmpty()
+  @IsOptional()
   description: LocalizedTextDto;
 
   @ApiProperty({
