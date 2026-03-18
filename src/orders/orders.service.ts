@@ -38,9 +38,44 @@ type PaymentRequestParams = {
 };
 
 type PaymentCallbackPayload = {
-  order_id: string;
-  order_status: string;
-  amount: string;
+  rrn?: string;
+  masked_card?: string;
+  sender_cell_phone?: string;
+  sender_account?: string;
+  currency?: string | number;
+  fee?: string;
+  reversal_amount?: string;
+  settlement_amount?: string;
+  actual_amount?: string;
+  response_description?: string;
+  sender_email?: string;
+  order_status?: string;
+  response_status?: string;
+  order_time?: string;
+  actual_currency?: string;
+  order_id?: string;
+  tran_type?: string;
+  eci?: string;
+  settlement_date?: string;
+  payment_system?: string;
+  approval_code?: string | number;
+  merchant_id?: string | number;
+  settlement_currency?: string;
+  payment_id?: string | number;
+  card_bin?: string | number;
+  response_code?: string;
+  card_type?: string;
+  amount?: string | number;
+  signature?: string;
+  product_id?: string;
+  merchant_data?: string;
+  rectoken?: string;
+  rectoken_lifetime?: string;
+  verification_status?: string;
+  parent_order_id?: string;
+  additional_info?: string;
+  response_signature_string?: string;
+  [key: string]: unknown;
 };
 
 @Injectable()
@@ -161,6 +196,69 @@ export class OrdersService {
     const trimmed = value.trim();
     if (!trimmed) return undefined;
     return { $regex: this.escapeRegex(trimmed), $options: 'i' } as const;
+  }
+
+  private stringifyFlittValue(value: unknown): string | undefined {
+    if (value === undefined || value === null) return undefined;
+    if (typeof value === 'string') {
+      return value.length > 0 ? value : undefined;
+    }
+    if (
+      typeof value === 'number' ||
+      typeof value === 'boolean' ||
+      typeof value === 'bigint'
+    ) {
+      return String(value);
+    }
+
+    return JSON.stringify(value);
+  }
+
+  private buildFlittSignature(
+    payload: Record<string, unknown>,
+    secretKey: string,
+  ) {
+    const signatureValues = Object.entries(payload)
+      .filter(
+        ([key]) => key !== 'signature' && key !== 'response_signature_string',
+      )
+      .map(([key, value]) => [key, this.stringifyFlittValue(value)] as const)
+      .filter(([, value]) => value !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([, value]) => value as string);
+
+    return crypto
+      .createHash('sha1')
+      .update([secretKey, ...signatureValues].join('|'))
+      .digest('hex');
+  }
+
+  private signaturesMatch(expected: string, received: string): boolean {
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+    const receivedBuffer = Buffer.from(received, 'utf8');
+
+    return (
+      expectedBuffer.length === receivedBuffer.length &&
+      crypto.timingSafeEqual(expectedBuffer, receivedBuffer)
+    );
+  }
+
+  private applyFlittCallbackMetadata(
+    order: OrderDocument,
+    callback: PaymentCallbackPayload,
+    signature: string,
+  ) {
+    const paymentId = this.stringifyFlittValue(callback.payment_id);
+    const orderStatus = this.stringifyFlittValue(callback.order_status);
+    const responseStatus = this.stringifyFlittValue(callback.response_status);
+    const merchantId = this.stringifyFlittValue(callback.merchant_id);
+
+    order.flittPaymentId = paymentId || order.flittPaymentId;
+    order.flittOrderStatus = orderStatus || order.flittOrderStatus;
+    order.flittResponseStatus = responseStatus || order.flittResponseStatus;
+    order.flittMerchantId = merchantId || order.flittMerchantId;
+    order.flittLastSignature = signature;
+    order.flittCallbackAt = new Date();
   }
 
   private buildOrderCode(): string {
@@ -340,18 +438,7 @@ export class OrdersService {
       throw new BadRequestException('FLITT_SECRET_KEY is not configured');
     }
 
-    const signatureString = [
-      secret_key,
-      ...Object.entries(requestParams)
-        .filter(([, value]) => value !== undefined)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([, value]) => value),
-    ].join('|');
-
-    const signature = crypto
-      .createHash('sha1')
-      .update(signatureString)
-      .digest('hex');
+    const signature = this.buildFlittSignature(requestParams, secret_key);
 
     const requestData = {
       request: {
@@ -385,60 +472,172 @@ export class OrdersService {
   }
 
   async callback(body: PaymentCallbackPayload) {
-    const { order_id, order_status, amount } = body;
-
-    console.log(body, 'callback+++++++++++++++++');
-
     try {
-      // 1. შეამოწმე არსებობს თუ არა შეკვეთა
-      const order = await this.orderModel.findById(order_id);
-      console.log(order, 'order+++++++++++++++++');
+      // Debug log: აქ ჩანს ზუსტად რა flat payload მოვიდა Flitt-დან.
+      // სასურველია production-ში ეს გადაიტანოთ structured logger-ზე,
+      // რადგან callback-ში შეიძლება სენსიტიური payment metadata მოდიოდეს.
+      console.log(body, 'body+++++');
+
+      // სისტემური კონფიგურაცია ამ endpoint-ის სანდოობის ბირთვია:
+      // secret key საჭიროა signature-ის გადასამოწმებლად,
+      // merchant id კი გვიცავს იმ შემთხვევისგან, თუ უცხო merchant-ის payload მოვა.
+      const secretKey = process.env.FLITT_SECRET_KEY;
+      const merchantIdExpected = process.env.FLITT_MERCHANT_ID;
+
+      if (!secretKey) {
+        throw new BadRequestException('FLITT_SECRET_KEY is not configured');
+      }
+
+      if (!merchantIdExpected) {
+        throw new BadRequestException('FLITT_MERCHANT_ID is not configured');
+      }
+
+      // callback-ის ძირითადი ველები ერთ სტრინგ ფორმატში მოგვყავს,
+      // რადგან Flitt ნაწილი ველებისა რიცხვადაც შეიძლება გამოგვიგზავნოს.
+      // stringifyFlittValue null/undefined-ს ფილტრავს და დანარჩენს
+      // შედარებისთვის ერთნაირ, პროგნოზირებად ფორმაში გარდაქმნის.
+      const orderId = this.stringifyFlittValue(body.order_id);
+      const orderStatus = this.stringifyFlittValue(body.order_status);
+      const amount = this.stringifyFlittValue(body.amount);
+      const currency = this.stringifyFlittValue(body.currency);
+      const merchantId = this.stringifyFlittValue(body.merchant_id);
+      const signatureRaw = this.stringifyFlittValue(body.signature);
+      const paymentId = this.stringifyFlittValue(body.payment_id);
+      const responseStatus = this.stringifyFlittValue(body.response_status);
+
+      // ეს ველები callback-ის მინიმალური ვალიდაციისთვის აუცილებელია.
+      // რომელიმე რომ აკლდეს, payload-ს საერთოდ აღარ ვენდობით
+      // და შეკვეთის სტატუსზე არანაირ ცვლილებას არ ვაკეთებთ.
+      if (!orderId || !orderStatus || !amount || !currency || !merchantId) {
+        throw new BadRequestException(
+          'Flitt callback is missing required fields',
+        );
+      }
+
+      // signature-ის გარეშე callback კრიპტოგრაფიულად ვერ დადასტურდება,
+      // ამიტომ ასეთი request ავტომატურად უარყოფილია.
+      if (!signatureRaw) {
+        throw new BadRequestException('Flitt callback signature is missing');
+      }
+
+      // ვანგარიშობთ იმ signature-ს, რომელიც ამ payload-ს უნდა ჰქონდეს
+      // ჩვენი FLITT_SECRET_KEY-ის მიხედვით. შემდეგ timing-safe შედარებით
+      // ვამოწმებთ რეალურად მოსულ მნიშვნელობასთან თანხვედრას.
+      const expectedSignature = this.buildFlittSignature(body, secretKey);
+      const receivedSignature = signatureRaw.toLowerCase();
+
+      if (!this.signaturesMatch(expectedSignature, receivedSignature)) {
+        throw new BadRequestException('Flitt callback signature is invalid');
+      }
+
+      // დამატებითი დაცვა: სწორ signature-თან ერთად merchant_id-ც უნდა ემთხვეოდეს
+      // ჩვენს კონფიგურაციას, რომ სხვა merchant-ის callback არ დამუშავდეს.
+      if (merchantId !== String(merchantIdExpected)) {
+        throw new BadRequestException('Flitt callback merchant_id mismatch');
+      }
+
+      // ამ flow-ში მხოლოდ GEL ველოდებით. სხვა ვალუტის payload-ის მიღება
+      // ნიშნავს, რომ თანხის შედარება და ბიზნეს-ლოგიკა სანდო აღარ არის.
+      if (currency !== 'GEL') {
+        throw new BadRequestException('Flitt callback currency mismatch');
+      }
+
+      // მას შემდეგ, რაც callback ავთენტურობაში დარწმუნდით,
+      // უკვე შეგვიძლია შესაბამისი order მოვძებნოთ payment provider-ის order_id-ით.
+      const order = await this.orderModel.findById(orderId).exec();
+
       if (!order) {
         console.error('Order not found for callback');
         throw new NotFoundException('Order not found');
       }
-      if (order_status !== 'approved') {
+
+      // თანხას ვადარებთ შეკვეთაში შენახულ total-ს თეთრებში/კაპიკებში.
+      // ეს გვიცავს იმ შემთხვევისგან, როცა signature მართალია,
+      // მაგრამ callback სხვა თანხაზეა გამოგზავნილი.
+      const expectedAmount = String(Math.round(order.total * 100));
+      if (amount !== expectedAmount) {
+        throw new BadRequestException('Flitt callback amount mismatch');
+      }
+
+      // idempotency:
+      // თუ იგივე callback მეორედ/მესამედ მოვიდა, აღარ უნდა გავუშვათ
+      // მეორედ სტატუსის განახლება, email ან FINA sync.
+      // ამისთვის ვამოწმებთ payment_id-ს ან ბოლო დამუშავებულ signature-ს.
+      const isDuplicateCallback =
+        (paymentId && order.flittPaymentId === paymentId) ||
+        order.flittLastSignature === receivedSignature;
+
+      // დუბლირებული callback-ს უბრალოდ ვპასუხობთ ok-ით.
+      // აქ სტატუსს აღარ ვეხებით, რათა side effect-ები არ განმეორდეს.
+      if (
+        isDuplicateCallback &&
+        order.flittOrderStatus === orderStatus &&
+        (responseStatus === undefined ||
+          order.flittResponseStatus === responseStatus)
+      ) {
+        return { status: 'ok' };
+      }
+
+      // callback-ის ტექნიკურ მეტამონაცემებს order-ზე ვინახავთ audit/debug მიზნებისთვის:
+      // payment id, response status, merchant id, ბოლო signature და callback დრო.
+      // ეს ძალიან გამოსადეგია მომავალში disputed payment-ის ან duplicate callback-ის ანალიზისთვის.
+      this.applyFlittCallbackMetadata(order, body, receivedSignature);
+
+      // თუ order უკვე paid არის, metadata-ს ვინახავთ, მაგრამ ბიზნეს-სტატუსს აღარ ვცვლით.
+      // ეს გვიცავს უკვე დასრულებული გადახდის ხელახლა დამუშავებისგან.
+      if (order.status === OrderStatus.Paid) {
+        await order.save();
+        return { status: 'ok' };
+      }
+
+      // თუ provider-მა approved არ დააბრუნა, ამ flow-ში შეკვეთას failed-ზე გადავიყვანთ.
+      // მომავალში შეიძლება გინდოდეთ უფრო დეტალური mapping:
+      // მაგალითად expired / reversed / declined სხვადასხვა შიდა სტატუსებზე.
+      if (orderStatus !== 'approved') {
         order.status = OrderStatus.Failed;
         await order.save();
         return { status: 'ok' };
       }
-      if (Number(amount) !== order.total * 100) {
-        console.log(amount, order.total, 'amount mismatch');
-        order.status = OrderStatus.Failed;
-        await order.save();
-        return { status: 'ok' };
+
+      // approved ნიშნავს, რომ callback წარმატებული გადახდის შესახებ გვატყობინებს,
+      // ამიტომ order ოფიციალურად გადაგვყავს paid სტატუსზე.
+      order.status = OrderStatus.Paid;
+      await order.save();
+
+      // გადახდილი შეკვეთის შემდეგ FINA-ში დოკუმენტის სინქრონიზაციას ვუშვებთ ფონურად.
+      // ამას intentionally არ ველოდებით, რომ callback სწრაფად დასრულდეს.
+      void this.syncFinaDocProductOut(order._id as Types.ObjectId).catch(
+        () => undefined,
+      );
+
+      // confirmation email-ის გასაგზავნად ჯერ order.email-ს ვიყენებთ,
+      // ხოლო თუ order-ზე არ არის, ვცდილობთ user პროფილიდან ამოვიღოთ.
+      let to: string | null = order.email;
+      if (!to) {
+        to = await this.resolveRecipientEmail(order);
       }
 
-      if (order_status === 'approved') {
-        const wasPaid = order.status === OrderStatus.Paid;
-        if (!wasPaid) {
-          order.status = OrderStatus.Paid;
-          await order.save();
+      // მეილი ასევე ფონურად იგზავნება, რათა callback endpoint
+      // გარე სერვისის პასუხზე არ იყოს დამოკიდებული.
+      if (to) {
+        void this.emailService
+          .sendOrderPaidEmail({
+            to,
+            locale: order.locale ?? 'ka',
 
-          void this.syncFinaDocProductOut(order._id as Types.ObjectId).catch(
-            () => undefined,
-          );
-
-          let to: string | null = order.email;
-          if (!to) {
-            to = await this.resolveRecipientEmail(order);
-          }
-          if (to) {
-            void this.emailService
-              .sendOrderPaidEmail({
-                to,
-                locale: order.locale ?? 'ka',
-
-                // @ts-expect-error: order type does not match OrderWithId as _id can be unknown
-                order: order,
-              })
-              .catch(() => undefined);
-          }
-        }
+            // @ts-expect-error: order type does not match OrderWithId as _id can be unknown
+            order: order,
+          })
+          .catch(() => undefined);
       }
 
+      // provider callback-ზე ხშირად აუცილებელია სტაბილურად "ok" დაბრუნდეს,
+      // რათა payment system-მა request retry-ები ან failure არ ჩათვალოს.
       return { status: 'ok' }; // აუცილებელია რომ ok დაბრუნდეს
     } catch (error) {
+      // აქ ყველა მოულოდნელი შეცდომა გადაიქცევა BadRequestException-ად.
+      // საჭიროების შემთხვევაში ჯობია დაემატოს structured logging,
+      // რომ signature mismatch / amount mismatch / missing order ცალ-ცალკე მარტივად იძებნებოდეს.
       console.log(error);
       throw new BadRequestException(error);
     }

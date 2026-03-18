@@ -130,6 +130,24 @@ export class Order {
 
   @Prop({ type: Date, required: false })
   finaDocProductOutSyncedAt?: Date;
+
+  @Prop({ type: String, required: false })
+  flittPaymentId?: string;
+
+  @Prop({ type: String, required: false })
+  flittOrderStatus?: string;
+
+  @Prop({ type: String, required: false })
+  flittResponseStatus?: string;
+
+  @Prop({ type: String, required: false })
+  flittMerchantId?: string;
+
+  @Prop({ type: String, required: false })
+  flittLastSignature?: string;
+
+  @Prop({ type: Date, required: false })
+  flittCallbackAt?: Date;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

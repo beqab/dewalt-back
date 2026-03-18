@@ -22,7 +22,6 @@ import type { Response } from 'express';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { CreatePaymentDto } from './dto/create-payment.dto';
-import { PaymentCallbackDto } from './dto/payment-callback.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { Order, OrderStatus } from './entities/order.entity';
 import { UserAuthGuard } from '../guards/user.guard';
@@ -63,8 +62,7 @@ export class OrdersController {
   @Post('callback')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Payment callback from provider' })
-  callback(@Body() body: PaymentCallbackDto) {
-    console.log(body, 'callback+++++++++++++++++');
+  callback(@Body() body: Record<string, unknown>) {
     return this.ordersService.callback(body);
   }
 
