@@ -670,6 +670,7 @@ export class CategoriesService {
         }
       }
 
+      void this.frontRevalidate.revalidateTags(FRONT_MENU_TAGS);
       return await this.childCategoryModel.create(createChildCategoryDto);
     } catch (error) {
       if (
@@ -746,6 +747,7 @@ export class CategoriesService {
         throw new NotFoundException(`Child category with ID ${id} not found`);
       }
 
+      void this.frontRevalidate.revalidateTags(FRONT_MENU_TAGS);
       return childCategory;
     } catch (error) {
       if (
@@ -772,6 +774,8 @@ export class CategoriesService {
           { $pull: { childCategoryIds: id } },
         )
         .exec();
+
+      void this.frontRevalidate.revalidateTags(FRONT_MENU_TAGS);
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
