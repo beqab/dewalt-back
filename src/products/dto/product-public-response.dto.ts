@@ -85,12 +85,6 @@ export class ProductPublicResponseDto {
   reviewCount: number;
 
   @ApiProperty({
-    description: 'URL-friendly slug',
-    example: 'angle-grinder-dwe4157',
-  })
-  slug: string;
-
-  @ApiProperty({
     description: 'Brand information',
     type: ProductCategoryRefPublicDto,
   })

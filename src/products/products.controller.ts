@@ -302,19 +302,6 @@ export class ProductsController {
     return this.productsService.findById(id, language);
   }
 
-  @Get('slug/:slug')
-  @ApiOperation({ summary: 'Get product by slug (public endpoint)' })
-  @ApiParam({ name: 'slug', description: 'Product slug' })
-  @ApiResponse({
-    status: 200,
-    description: 'Product retrieved successfully',
-    type: ProductResponseDto,
-  })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  findBySlug(@Param('slug') slug: string) {
-    return this.productsService.findBySlug(slug);
-  }
-
   @Get(':id/similar')
   @ApiOperation({ summary: 'Get similar products (public endpoint)' })
   @ApiParam({ name: 'id', description: 'Product ID' })
@@ -362,7 +349,7 @@ export class ProductsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({
     status: 409,
-    description: 'Product code or slug already exists',
+    description: 'Product code already exists',
   })
   create(@Body() createProductDto: CreateProductDto) {
     return this.productsService.create(createProductDto);
@@ -387,7 +374,7 @@ export class ProductsController {
   @ApiResponse({ status: 404, description: 'Product not found' })
   @ApiResponse({
     status: 409,
-    description: 'Product code or slug already exists',
+    description: 'Product code already exists',
   })
   update(@Param('id') id: string, @Body() updateProductDto: CreateProductDto) {
     return this.productsService.update(id, updateProductDto);

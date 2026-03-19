@@ -511,19 +511,6 @@ export class ProductsService {
     }
   }
 
-  async findBySlug(slug: string): Promise<ProductDocument | null> {
-    try {
-      return await this.productModel
-        .findOne({ slug })
-        .populate('brandId', 'name slug')
-        .populate('categoryId', 'name slug')
-        .populate('childCategoryId', 'name slug')
-        .exec();
-    } catch (error) {
-      throw new BadRequestException('Failed to fetch product by slug');
-    }
-  }
-
   /**
    * Extract ID string from populated field (can be ObjectId, populated object, or string)
    */
@@ -809,17 +796,6 @@ export class ProductsService {
         );
       }
 
-      // Check if product with this slug already exists
-      const existingProductBySlug = await this.productModel
-        .findOne({ slug: createProductDto.slug })
-        .exec();
-
-      if (existingProductBySlug) {
-        throw new ConflictException(
-          `Product with slug ${createProductDto.slug} already exists`,
-        );
-      }
-
       const created = await this.productModel.create(createProductDto);
       void this.frontRevalidate.revalidateTags(
         FRONT_PRODUCTS_TAGS as unknown as string[],
@@ -892,19 +868,6 @@ export class ProductsService {
         if (existingProductByCode) {
           throw new ConflictException(
             `Product with code ${updateProductDto.code} already exists`,
-          );
-        }
-      }
-
-      // Check for slug conflict (if slug is being changed)
-      if (updateProductDto.slug && updateProductDto.slug !== product.slug) {
-        const existingProductBySlug = await this.productModel
-          .findOne({ slug: updateProductDto.slug })
-          .exec();
-
-        if (existingProductBySlug) {
-          throw new ConflictException(
-            `Product with slug ${updateProductDto.slug} already exists`,
           );
         }
       }

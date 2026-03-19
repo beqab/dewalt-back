@@ -82,7 +82,6 @@ function generateFakeProduct(index: number) {
       faker.number.float({ min: 3.5, max: 5, fractionDigits: 1 }).toFixed(1),
     ),
     reviewCount: faker.number.int({ min: 10, max: 500 }),
-    slug: faker.helpers.slugify(productName).toLowerCase(),
     specs,
   };
 }
@@ -110,7 +109,6 @@ const fakeProducts = [
     quantity: 45,
     rating: 4.5,
     reviewCount: 127,
-    slug: 'dewalt-dcd791d2-20v-max-xr-cordless-drill-driver-kit',
     specs: [
       {
         label: { en: 'Voltage', ka: 'ვოლტაჟი' },
@@ -149,7 +147,6 @@ const fakeProducts = [
     quantity: 23,
     rating: 4.7,
     reviewCount: 89,
-    slug: 'dewalt-dws779-12-inch-miter-saw',
     specs: [
       {
         label: { en: 'Motor', ka: 'ძრავა' },
@@ -186,7 +183,6 @@ const fakeProducts = [
     quantity: 15,
     rating: 4.6,
     reviewCount: 203,
-    slug: 'dewalt-dwe7491rs-10-inch-table-saw',
     specs: [
       {
         label: { en: 'Motor', ka: 'ძრავა' },
@@ -221,7 +217,6 @@ const fakeProducts = [
     quantity: 67,
     rating: 4.8,
     reviewCount: 312,
-    slug: 'dewalt-dcf887b-20v-max-xr-impact-driver',
     specs: [
       {
         label: { en: 'Voltage', ka: 'ვოლტაჟი' },
@@ -257,7 +252,6 @@ const fakeProducts = [
     quantity: 34,
     rating: 4.4,
     reviewCount: 156,
-    slug: 'dewalt-dcs570b-20v-max-xr-circular-saw',
     specs: [
       {
         label: { en: 'Voltage', ka: 'ვოლტაჟი' },
@@ -292,7 +286,6 @@ const fakeProducts = [
     quantity: 52,
     rating: 4.3,
     reviewCount: 78,
-    slug: 'dewalt-dwe6423k-random-orbital-sander',
     specs: [
       {
         label: { en: 'Motor', ka: 'ძრავა' },
@@ -327,7 +320,6 @@ const fakeProducts = [
     quantity: 0,
     rating: 4.2,
     reviewCount: 94,
-    slug: 'dewalt-dcs391b-20v-max-xr-jigsaw',
     specs: [
       {
         label: { en: 'Voltage', ka: 'ვოლტაჟი' },
@@ -362,7 +354,6 @@ const fakeProducts = [
     quantity: 128,
     rating: 4.6,
     reviewCount: 245,
-    slug: 'dewalt-dcl050-20v-max-led-work-light',
     specs: [
       {
         label: { en: 'Voltage', ka: 'ვოლტაჟი' },

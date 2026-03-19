@@ -62,9 +62,6 @@ export class Product {
   @Prop({ type: Number, default: 0, min: 0 })
   reviewCount: number; // Number of reviews
 
-  @Prop({ type: String, required: false, unique: false })
-  slug: string; // URL-friendly identifier
-
   @Prop({
     type: MongooseSchema.Types.ObjectId,
     ref: 'Brand',
@@ -101,7 +98,6 @@ export const ProductSchema = SchemaFactory.createForClass(Product);
 export type ProductDocument = Product & Document;
 
 // Add indexes for better query performance
-// Note: slug and code already have indexes from unique: true, so we don't need to add them again
 ProductSchema.index({ brandId: 1 });
 ProductSchema.index({ categoryId: 1 });
 ProductSchema.index({ childCategoryId: 1 });

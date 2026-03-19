@@ -168,14 +168,6 @@ export class CreateProductDto {
   reviewCount?: number;
 
   @ApiProperty({
-    description: 'URL-friendly slug (unique identifier)',
-    example: 'angle-grinder-dew-86511',
-  })
-  @IsNotEmpty()
-  @IsString()
-  slug: string;
-
-  @ApiProperty({
     description: 'Brand ID (reference to Brand)',
     example: '507f1f77bcf86cd799439011',
   })
