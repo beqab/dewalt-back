@@ -62,7 +62,7 @@ export class Product {
   @Prop({ type: Number, default: 0, min: 0 })
   reviewCount: number; // Number of reviews
 
-  @Prop({ type: String, required: true, unique: true })
+  @Prop({ type: String, required: false, unique: false })
   slug: string; // URL-friendly identifier
 
   @Prop({
