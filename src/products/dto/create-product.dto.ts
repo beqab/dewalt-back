@@ -3,7 +3,6 @@ import {
   IsNotEmpty,
   IsString,
   IsNumber,
-  IsBoolean,
   IsOptional,
   IsInt,
   IsMongoId,
@@ -110,16 +109,6 @@ export class CreateProductDto {
   @Min(0)
   @Max(100)
   discount?: number;
-
-  @ApiProperty({
-    description: 'Product availability status',
-    example: true,
-    default: true,
-    required: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  inStock?: boolean;
 
   @ApiProperty({
     description: 'Stock quantity',

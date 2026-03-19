@@ -39,8 +39,10 @@ function generateFakeProduct(index: number) {
     : undefined;
   const imageCount = faker.number.int({ min: 2, max: 6 });
   const images = getRandomImages(imageCount);
-  const inStock = faker.datatype.boolean({ probability: 0.85 });
-  const quantity = inStock ? faker.number.int({ min: 0, max: 200 }) : 0;
+  const quantity =
+    faker.datatype.boolean({ probability: 0.85 })
+      ? faker.number.int({ min: 1, max: 200 })
+      : 0;
 
   // Generate specs
   const specCount = faker.number.int({ min: 2, max: 5 });
@@ -75,7 +77,6 @@ function generateFakeProduct(index: number) {
       ? Math.round(originalPrice * 100) / 100
       : undefined,
     discount,
-    inStock,
     quantity,
     rating: parseFloat(
       faker.number.float({ min: 3.5, max: 5, fractionDigits: 1 }).toFixed(1),
@@ -103,7 +104,6 @@ const fakeProducts = [
     price: 199.99,
     originalPrice: 249.99,
     discount: 20,
-    inStock: true,
     quantity: 45,
     rating: 4.5,
     reviewCount: 127,
@@ -140,7 +140,6 @@ const fakeProducts = [
     price: 399.99,
     originalPrice: 449.99,
     discount: 11,
-    inStock: true,
     quantity: 23,
     rating: 4.7,
     reviewCount: 89,
@@ -175,7 +174,6 @@ const fakeProducts = [
     price: 599.99,
     originalPrice: 699.99,
     discount: 14,
-    inStock: true,
     quantity: 15,
     rating: 4.6,
     reviewCount: 203,
@@ -208,7 +206,6 @@ const fakeProducts = [
     price: 149.99,
     originalPrice: 179.99,
     discount: 17,
-    inStock: true,
     quantity: 67,
     rating: 4.8,
     reviewCount: 312,
@@ -242,7 +239,6 @@ const fakeProducts = [
       'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=800',
     ],
     price: 179.99,
-    inStock: true,
     quantity: 34,
     rating: 4.4,
     reviewCount: 156,
@@ -275,7 +271,6 @@ const fakeProducts = [
     price: 89.99,
     originalPrice: 109.99,
     discount: 18,
-    inStock: true,
     quantity: 52,
     rating: 4.3,
     reviewCount: 78,
@@ -308,7 +303,6 @@ const fakeProducts = [
       'https://images.unsplash.com/photo-1504148455328-c376907d081c?w=800',
     ],
     price: 129.99,
-    inStock: false,
     quantity: 0,
     rating: 4.2,
     reviewCount: 94,
@@ -341,7 +335,6 @@ const fakeProducts = [
     price: 49.99,
     originalPrice: 59.99,
     discount: 17,
-    inStock: true,
     quantity: 128,
     rating: 4.6,
     reviewCount: 245,

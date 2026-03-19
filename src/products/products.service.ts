@@ -391,7 +391,7 @@ export class ProductsService {
       }
 
       if (filters?.inStock !== undefined) {
-        query.inStock = filters.inStock;
+        query.quantity = filters.inStock ? { $gt: 0 } : 0;
       }
 
       if (filters?.minPrice !== undefined || filters?.maxPrice !== undefined) {

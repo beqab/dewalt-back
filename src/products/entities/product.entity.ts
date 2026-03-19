@@ -47,9 +47,6 @@ export class Product {
   @Prop({ type: Number, required: false, min: 0, max: 100 })
   discount?: number; // Discount percentage (0-100)
 
-  @Prop({ type: Boolean, default: true })
-  inStock: boolean;
-
   @Prop({ type: Number, default: 0, min: 0 })
   quantity: number; // Stock quantity
 
@@ -99,4 +96,4 @@ ProductSchema.index({ brandId: 1 });
 ProductSchema.index({ categoryId: 1 });
 ProductSchema.index({ childCategoryId: 1 });
 ProductSchema.index({ price: 1 });
-ProductSchema.index({ inStock: 1 });
+ProductSchema.index({ quantity: 1 });

@@ -78,12 +78,6 @@ export class ProductResponseDto {
   discount?: number;
 
   @ApiProperty({
-    description: 'Product availability status',
-    example: true,
-  })
-  inStock: boolean;
-
-  @ApiProperty({
     description: 'Average rating',
     example: 4.5,
   })

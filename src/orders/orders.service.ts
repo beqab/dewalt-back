@@ -247,22 +247,18 @@ export class OrdersService {
           .findOneAndUpdate(
             {
               _id: new Types.ObjectId(productId),
-              inStock: true,
               quantity: { $gte: quantity },
             },
             [
               {
                 $set: {
                   quantity: { $subtract: ['$quantity', quantity] },
-                  inStock: {
-                    $gt: [{ $subtract: ['$quantity', quantity] }, 0],
-                  },
                 },
               },
             ],
             { new: true },
           )
-          .select('_id quantity inStock')
+          .select('_id quantity')
           .lean()
           .exec();
 
@@ -282,7 +278,6 @@ export class OrdersService {
               { _id: new Types.ObjectId(productId) },
               {
                 $inc: { quantity },
-                $set: { inStock: true },
               },
             )
             .exec(),
@@ -456,7 +451,7 @@ export class OrdersService {
       const availableQuantity =
         typeof product.quantity === 'number' ? product.quantity : 0;
 
-      if (!product.inStock || availableQuantity < requestedQuantity) {
+      if (availableQuantity < requestedQuantity) {
         throw new BadRequestException(
           `Insufficient stock for product ${item.productId}`,
         );
@@ -822,7 +817,7 @@ export class OrdersService {
       .populate({
         path: 'items.productId',
         select:
-          '_id name image images slug price originalPrice discount inStock quantity rating reviewCount finaId finaCode specs',
+          '_id name image images slug price originalPrice discount quantity rating reviewCount finaId finaCode specs',
       })
       .exec();
 

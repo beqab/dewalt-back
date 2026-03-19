@@ -69,9 +69,6 @@ export class ProductPublicResponseDto {
   })
   discount?: number;
 
-  @ApiProperty({ description: 'Product availability status', example: true })
-  inStock: boolean;
-
   @ApiProperty({ description: 'Quantity', example: 1 })
   quantity: number;
 
