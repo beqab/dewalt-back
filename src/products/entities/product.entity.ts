@@ -44,7 +44,7 @@ export class Product {
   @Prop({ type: Number, required: true, min: 0 })
   price: number; // Current price
 
-  @Prop({ type: Number, required: false, min: 0 })
+  @Prop({ type: Number, required: false, min: 0, default: 0 })
   originalPrice?: number; // Original price before discount
 
   @Prop({ type: Number, required: false, min: 0, max: 100 })

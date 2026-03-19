@@ -826,6 +826,7 @@ export class ProductsService {
       );
       return created;
     } catch (error) {
+      console.log(error, 'error+++++++++++++++++');
       if (
         error instanceof NotFoundException ||
         error instanceof ConflictException ||

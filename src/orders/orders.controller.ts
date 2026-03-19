@@ -10,7 +10,10 @@ import {
   UseGuards,
   Query,
   Res,
+  UseInterceptors,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -28,6 +31,7 @@ import { UserAuthGuard } from '../guards/user.guard';
 import { CurrentUser } from '../decorators/getCurrentUser';
 import type { CurrentUserType } from '../decorators/getCurrentUser';
 import { AdminAuthGuard } from '../guards/admin.guard';
+import { CurrentUserInterceptor } from '../interceptors/current-user.interceptor';
 
 @ApiTags('orders')
 @Controller('orders')
@@ -36,6 +40,7 @@ export class OrdersController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @UseInterceptors(CurrentUserInterceptor)
   @ApiOperation({ summary: 'Create a new order' })
   @ApiResponse({
     status: 201,
@@ -44,8 +49,12 @@ export class OrdersController {
   })
   @ApiResponse({ status: 400, description: 'Invalid request data' })
   @ApiResponse({ status: 404, description: 'Product not found' })
-  create(@Body() createOrderDto: CreateOrderDto): Promise<Order> {
-    return this.ordersService.create(createOrderDto);
+  create(
+    @Body() createOrderDto: CreateOrderDto,
+    @Req()
+    req: Request & { CurrentUser?: CurrentUserType },
+  ): Promise<Order> {
+    return this.ordersService.create(createOrderDto, req.CurrentUser?.id);
   }
 
   @Post('payment')
@@ -88,22 +97,23 @@ export class OrdersController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get orders with optional filters' })
+  @UseGuards(UserAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Get current user's orders" })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'status', required: false, enum: OrderStatus })
-  @ApiQuery({ name: 'userId', required: false, type: String })
   findAll(
+    @CurrentUser() user: CurrentUserType,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('status') status?: OrderStatus,
-    @Query('userId') userId?: string,
   ) {
-    return this.ordersService.findAll({
+    return this.ordersService.findMyOrders({
+      userId: user.id,
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
       status,
-      userId,
     });
   }
 

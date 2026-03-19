@@ -188,6 +188,111 @@ export class OrdersService {
     return user?.email ?? null;
   }
 
+  private extractOrderItemProductId(item: {
+    productId?: unknown;
+  }): string | null {
+    const rawProductId = item.productId;
+
+    if (rawProductId instanceof Types.ObjectId) {
+      return rawProductId.toHexString();
+    }
+
+    if (
+      typeof rawProductId === 'string' &&
+      Types.ObjectId.isValid(rawProductId)
+    ) {
+      return rawProductId;
+    }
+
+    if (
+      rawProductId &&
+      typeof rawProductId === 'object' &&
+      '_id' in rawProductId
+    ) {
+      const nestedId = (rawProductId as { _id?: unknown })._id;
+      if (nestedId instanceof Types.ObjectId) {
+        return nestedId.toHexString();
+      }
+      if (typeof nestedId === 'string' && Types.ObjectId.isValid(nestedId)) {
+        return nestedId;
+      }
+    }
+
+    return null;
+  }
+
+  private async decrementStockForPaidOrder(
+    order: OrderDocument,
+  ): Promise<void> {
+    const requiredByProduct = new Map<string, number>();
+
+    for (const item of order.items || []) {
+      const productId = this.extractOrderItemProductId(item);
+      if (!productId) continue;
+
+      requiredByProduct.set(
+        productId,
+        (requiredByProduct.get(productId) ?? 0) + item.quantity,
+      );
+    }
+
+    if (requiredByProduct.size === 0) return;
+
+    const decrementedProducts: Array<{ productId: string; quantity: number }> =
+      [];
+
+    try {
+      for (const [productId, quantity] of requiredByProduct) {
+        const updatedProduct = await this.productModel
+          .findOneAndUpdate(
+            {
+              _id: new Types.ObjectId(productId),
+              inStock: true,
+              quantity: { $gte: quantity },
+            },
+            [
+              {
+                $set: {
+                  quantity: { $subtract: ['$quantity', quantity] },
+                  inStock: {
+                    $gt: [{ $subtract: ['$quantity', quantity] }, 0],
+                  },
+                },
+              },
+            ],
+            { new: true },
+          )
+          .select('_id quantity inStock')
+          .lean()
+          .exec();
+
+        if (!updatedProduct) {
+          throw new BadRequestException(
+            `Insufficient stock for product ${productId}`,
+          );
+        }
+
+        decrementedProducts.push({ productId, quantity });
+      }
+    } catch (error) {
+      await Promise.all(
+        decrementedProducts.map(({ productId, quantity }) =>
+          this.productModel
+            .updateOne(
+              { _id: new Types.ObjectId(productId) },
+              {
+                $inc: { quantity },
+                $set: { inStock: true },
+              },
+            )
+            .exec(),
+        ),
+      );
+
+      throw error;
+    }
+  }
+
   private escapeRegex(input: string): string {
     return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
@@ -285,7 +390,10 @@ export class OrdersService {
     }
   }
 
-  async create(createOrderDto: CreateOrderDto): Promise<OrderDocument> {
+  async create(
+    createOrderDto: CreateOrderDto,
+    authenticatedUserId?: string,
+  ): Promise<OrderDocument> {
     const { items, deliveryType } = createOrderDto;
 
     if (!items || items.length === 0) {
@@ -301,6 +409,11 @@ export class OrdersService {
 
     const productIds = items.map((item) => item.productId);
     const uniqueIds = Array.from(new Set(productIds));
+    const requestedQtyByProduct = items.reduce((acc, item) => {
+      const key = item.productId.toString();
+      acc.set(key, (acc.get(key) ?? 0) + item.quantity);
+      return acc;
+    }, new Map<string, number>());
 
     const products: FlattenMaps<ProductDocument>[] | null =
       await this.productModel
@@ -335,6 +448,17 @@ export class OrdersService {
       if (!product) {
         throw new NotFoundException(
           `Product with ID ${item.productId} not found`,
+        );
+      }
+
+      const requestedQuantity =
+        requestedQtyByProduct.get(item.productId.toString()) ?? item.quantity;
+      const availableQuantity =
+        typeof product.quantity === 'number' ? product.quantity : 0;
+
+      if (!product.inStock || availableQuantity < requestedQuantity) {
+        throw new BadRequestException(
+          `Insufficient stock for product ${item.productId}`,
         );
       }
 
@@ -395,8 +519,11 @@ export class OrdersService {
       total,
       status: OrderStatus.Pending,
       items: orderItems,
-      userId: createOrderDto.userId
-        ? new Types.ObjectId(createOrderDto.userId)
+      // Never trust userId from request body.
+      // If the request is authenticated, bind the order to the token user.
+      // Otherwise keep it as a guest order.
+      userId: authenticatedUserId
+        ? new Types.ObjectId(authenticatedUserId)
         : undefined,
     });
 
@@ -407,6 +534,18 @@ export class OrdersService {
     const order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Order not found');
+    }
+
+    if (order.status === OrderStatus.Paid) {
+      throw new BadRequestException(
+        'Payment link cannot be created for a paid order',
+      );
+    }
+
+    if (order.status !== OrderStatus.Pending) {
+      throw new BadRequestException(
+        'Payment link can only be created for pending orders',
+      );
     }
 
     const resolvedLocale = locale ?? order.locale ?? 'ka';
@@ -601,6 +740,9 @@ export class OrdersService {
 
       // approved ნიშნავს, რომ callback წარმატებული გადახდის შესახებ გვატყობინებს,
       // ამიტომ order ოფიციალურად გადაგვყავს paid სტატუსზე.
+      // ამ მომენტში რეალურად ვაკლებთ stock-ს, რადგან მხოლოდ frontend check
+      // overselling-ს ვერ კეტავს და საბოლოო დაცვა backend-ზე უნდა არსებობდეს.
+      await this.decrementStockForPaidOrder(order);
       order.status = OrderStatus.Paid;
       await order.save();
 
@@ -643,9 +785,10 @@ export class OrdersService {
     }
   }
 
-  async checkOrderStatus(
-    orderIdOrUuid: string,
-  ): Promise<{ status: OrderStatus; order: OrderDocument }> {
+  async checkOrderStatus(orderIdOrUuid: string): Promise<{
+    status: OrderStatus;
+    order: Omit<Order, 'personalId' | 'email'> & Record<string, unknown>;
+  }> {
     let order: OrderDocument | null = null;
 
     if (Types.ObjectId.isValid(orderIdOrUuid) && orderIdOrUuid.length === 24) {
@@ -658,7 +801,14 @@ export class OrdersService {
       throw new NotFoundException('Order not found');
     }
 
-    return { status: order.status, order };
+    const plainOrder =
+      typeof order.toObject === 'function'
+        ? (order.toObject() as Order & Record<string, unknown>)
+        : (order as unknown as Order & Record<string, unknown>);
+
+    const { personalId: _personalId, email: _email, ...safeOrder } = plainOrder;
+
+    return { status: order.status, order: safeOrder };
   }
 
   async findOneAdmin(orderId: string) {
@@ -932,6 +1082,10 @@ export class OrdersService {
 
       const oldStatus = order.status;
       if (oldStatus === status) return order;
+
+      if (oldStatus !== OrderStatus.Paid && status === OrderStatus.Paid) {
+        await this.decrementStockForPaidOrder(order);
+      }
 
       order.status = status;
       const saved = await order.save();
