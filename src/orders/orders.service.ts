@@ -822,7 +822,7 @@ export class OrdersService {
       .populate({
         path: 'items.productId',
         select:
-          '_id name code image images slug price originalPrice discount inStock quantity rating reviewCount finaId finaCode specs',
+          '_id name image images slug price originalPrice discount inStock quantity rating reviewCount finaId finaCode specs',
       })
       .exec();
 

@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, FlattenMaps, Model, Types } from 'mongoose';
@@ -413,7 +412,6 @@ export class ProductsService {
           const or: Record<string, unknown>[] = [
             { 'name.ka': { $regex: escapedSearch, $options: 'i' } },
             { 'name.en': { $regex: escapedSearch, $options: 'i' } },
-            { code: { $regex: escapedSearch, $options: 'i' } },
             { finaCode: { $regex: escapedSearch, $options: 'i' } },
           ];
 
@@ -785,17 +783,6 @@ export class ProductsService {
         }
       }
 
-      // Check if product with this code already exists
-      const existingProductByCode = await this.productModel
-        .findOne({ code: createProductDto.code })
-        .exec();
-
-      if (existingProductByCode) {
-        throw new ConflictException(
-          `Product with code ${createProductDto.code} already exists`,
-        );
-      }
-
       const created = await this.productModel.create(createProductDto);
       void this.frontRevalidate.revalidateTags(
         FRONT_PRODUCTS_TAGS as unknown as string[],
@@ -805,7 +792,6 @@ export class ProductsService {
       console.log(error, 'error+++++++++++++++++');
       if (
         error instanceof NotFoundException ||
-        error instanceof ConflictException ||
         error instanceof BadRequestException
       ) {
         throw error;
@@ -859,19 +845,6 @@ export class ProductsService {
         }
       }
 
-      // Check for code conflict (if code is being changed)
-      if (updateProductDto.code && updateProductDto.code !== product.code) {
-        const existingProductByCode = await this.productModel
-          .findOne({ code: updateProductDto.code })
-          .exec();
-
-        if (existingProductByCode) {
-          throw new ConflictException(
-            `Product with code ${updateProductDto.code} already exists`,
-          );
-        }
-      }
-
       const updatedProduct = await this.productModel
         .findByIdAndUpdate(id, updateProductDto, { new: true })
         .populate('brandId', 'name slug')
@@ -886,7 +859,6 @@ export class ProductsService {
     } catch (error) {
       if (
         error instanceof NotFoundException ||
-        error instanceof ConflictException ||
         error instanceof BadRequestException
       ) {
         throw error;

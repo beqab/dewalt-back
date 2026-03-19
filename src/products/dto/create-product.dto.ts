@@ -28,14 +28,6 @@ export class CreateProductDto {
   name: LocalizedTextDto;
 
   @ApiProperty({
-    description: 'Product code (unique identifier)',
-    example: 'DEW-86511 55 31321321641684 SRG-982',
-  })
-  @IsOptional()
-  @IsString()
-  code: string;
-
-  @ApiProperty({
     description: 'FINA product id (optional)',
     example: 12345,
     required: false,

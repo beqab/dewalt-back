@@ -64,7 +64,6 @@ function generateFakeProduct(index: number) {
       en: `DEWALT ${productName}`,
       ka: `DEWALT ${productName} (KA)`,
     },
-    code: `DEW-${faker.string.alphanumeric(8).toUpperCase()}`,
     description: {
       en: faker.commerce.productDescription(),
       ka: `${faker.commerce.productDescription()} (KA)`,
@@ -92,7 +91,6 @@ const fakeProducts = [
       en: 'DEWALT DCD791D2 20V MAX XR Cordless Drill Driver Kit',
       ka: 'DEWALT DCD791D2 20V MAX XR უსადენო საბურღი კომპლექტი',
     },
-    code: 'DEW-DCD791D2',
     description: {
       en: 'Powerful cordless drill driver with brushless motor, 2-speed transmission, and LED light. Includes 2 batteries and charger.',
       ka: 'ძლიერი უსადენო საბურღი უბრაშის ძრავით, 2-სიჩქარიანი გადაცემით და LED განათებით. მოიცავს 2 ბატარეას და დამტენს.',
@@ -129,7 +127,6 @@ const fakeProducts = [
       en: 'DEWALT DWS779 12-Inch Miter Saw',
       ka: 'DEWALT DWS779 12-ინჩიანი მიტერის ხერხი',
     },
-    code: 'DEW-DWS779',
     description: {
       en: 'Professional miter saw with 15-amp motor, 0-50 degree miter capacity, and 0-48 degree bevel capacity.',
       ka: 'პროფესიონალური მიტერის ხერხი 15-ამპერიანი ძრავით, 0-50 გრადუსიანი მიტერის ტევადობით და 0-48 გრადუსიანი ფერდობის ტევადობით.',
@@ -167,7 +164,6 @@ const fakeProducts = [
       en: 'DEWALT DWE7491RS 10-Inch Table Saw',
       ka: 'DEWALT DWE7491RS 10-ინჩიანი მაგიდის ხერხი',
     },
-    code: 'DEW-DWE7491RS',
     description: {
       en: 'Jobsite table saw with rolling stand, 15-amp motor, and 32.5-inch rip capacity.',
       ka: 'სამუშაო ადგილის მაგიდის ხერხი მოძრავი სადგამით, 15-ამპერიანი ძრავით და 32.5-ინჩიანი ჭრის ტევადობით.',
@@ -203,7 +199,6 @@ const fakeProducts = [
       en: 'DEWALT DCF887B 20V MAX XR Impact Driver',
       ka: 'DEWALT DCF887B 20V MAX XR იმპაქტური დრაივერი',
     },
-    code: 'DEW-DCF887B',
     description: {
       en: 'Brushless impact driver with 3-speed settings, 1,825 in-lbs of torque, and compact design.',
       ka: 'უბრაშის იმპაქტური დრაივერი 3-სიჩქარიანი რეჟიმებით, 1,825 in-lbs ბრუნვის მომენტით და კომპაქტური დიზაინით.',
@@ -237,7 +232,6 @@ const fakeProducts = [
       en: 'DEWALT DCS570B 20V MAX XR Circular Saw',
       ka: 'DEWALT DCS570B 20V MAX XR წრიული ხერხი',
     },
-    code: 'DEW-DCS570B',
     description: {
       en: 'Cordless circular saw with brushless motor, 7-1/4 inch blade, and bevel capacity up to 57 degrees.',
       ka: 'უსადენო წრიული ხერხი უბრაშის ძრავით, 7-1/4 ინჩიანი დანით და 57 გრადუსამდე ფერდობის ტევადობით.',
@@ -272,7 +266,6 @@ const fakeProducts = [
       en: 'DEWALT DWE6423K Random Orbital Sander',
       ka: 'DEWALT DWE6423K შემთხვევითი ორბიტალური ქვიშის ქაღალდი',
     },
-    code: 'DEW-DWE6423K',
     description: {
       en: '5-inch random orbital sander with 3.0 amp motor and variable speed control.',
       ka: '5-ინჩიანი შემთხვევითი ორბიტალური ქვიშის ქაღალდი 3.0 ამპერიანი ძრავით და ცვლადი სიჩქარის კონტროლით.',
@@ -306,7 +299,6 @@ const fakeProducts = [
       en: 'DEWALT DCS391B 20V MAX XR Jigsaw',
       ka: 'DEWALT DCS391B 20V MAX XR ჯიგსოუ',
     },
-    code: 'DEW-DCS391B',
     description: {
       en: 'Cordless jigsaw with brushless motor, variable speed trigger, and tool-free blade change.',
       ka: 'უსადენო ჯიგსოუ უბრაშის ძრავით, ცვლადი სიჩქარის ტრიგერით და ხელსაწყოს გარეშე დანის შეცვლით.',
@@ -340,7 +332,6 @@ const fakeProducts = [
       en: 'DEWALT DCL050 20V MAX LED Work Light',
       ka: 'DEWALT DCL050 20V MAX LED სამუშაო ნათება',
     },
-    code: 'DEW-DCL050',
     description: {
       en: 'Bright LED work light with 20V MAX battery compatibility, 2,100 lumens, and 360-degree rotation.',
       ka: 'ნათელი LED სამუშაო ნათება 20V MAX ბატარეის თავსებადობით, 2,100 ლუმენით და 360 გრადუსიანი ბრუნვით.',

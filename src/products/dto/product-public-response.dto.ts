@@ -32,9 +32,6 @@ export class ProductPublicResponseDto {
   })
   name: string;
 
-  @ApiProperty({ description: 'Product code', example: 'DWE4157' })
-  code: string;
-
   @ApiProperty({
     description: 'Product description (translated)',
     example: 'Grinding and polishing tools',

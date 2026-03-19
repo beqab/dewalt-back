@@ -160,7 +160,7 @@ export class ProductsController {
     name: 'search',
     required: false,
     type: String,
-    description: 'Search in name and code',
+    description: 'Search in name, FINA code, and FINA id',
   })
   @ApiQuery({
     name: 'sort',
@@ -347,10 +347,6 @@ export class ProductsController {
   })
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({
-    status: 409,
-    description: 'Product code already exists',
-  })
   create(@Body() createProductDto: CreateProductDto) {
     return this.productsService.create(createProductDto);
   }
@@ -372,10 +368,6 @@ export class ProductsController {
   @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Product not found' })
-  @ApiResponse({
-    status: 409,
-    description: 'Product code already exists',
-  })
   update(@Param('id') id: string, @Body() updateProductDto: CreateProductDto) {
     return this.productsService.update(id, updateProductDto);
   }
