@@ -388,9 +388,12 @@ export class AdminService {
       } else {
         // Remove specific refresh token
         if (!refreshToken) {
-          throw new BadRequestException(
-            'Refresh token is required when logging out from a single device',
-          );
+          return {
+            message: 'Logout successful without refresh token',
+          };
+          // throw new BadRequestException(
+          //   'Refresh token is required when logging out from a single device',
+          // );
         }
 
         // Filter out the specific refresh token
