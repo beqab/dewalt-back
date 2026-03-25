@@ -77,6 +77,14 @@ export class Product {
   })
   childCategoryId?: MongooseSchema.Types.ObjectId;
 
+  @Prop({
+    type: Number,
+    required: false,
+    default: null,
+    enum: [null, 1, 2, 3, 4, 5],
+  })
+  sliderNumber: number | null;
+
   @Prop({ type: [ProductSpecSchema], default: [] })
   specs: ProductSpec[];
 
@@ -97,3 +105,4 @@ ProductSchema.index({ categoryId: 1 });
 ProductSchema.index({ childCategoryId: 1 });
 ProductSchema.index({ price: 1 });
 ProductSchema.index({ quantity: 1 });
+ProductSchema.index({ sliderNumber: 1 });

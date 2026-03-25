@@ -39,10 +39,9 @@ function generateFakeProduct(index: number) {
     : undefined;
   const imageCount = faker.number.int({ min: 2, max: 6 });
   const images = getRandomImages(imageCount);
-  const quantity =
-    faker.datatype.boolean({ probability: 0.85 })
-      ? faker.number.int({ min: 1, max: 200 })
-      : 0;
+  const quantity = faker.datatype.boolean({ probability: 0.85 })
+    ? faker.number.int({ min: 1, max: 200 })
+    : 0;
 
   // Generate specs
   const specCount = faker.number.int({ min: 2, max: 5 });

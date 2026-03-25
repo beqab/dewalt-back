@@ -155,6 +155,76 @@ export class ProductsService {
     };
   }
 
+  async updateSliderNumber(
+    productId: string,
+    sliderNumber: number | null,
+  ): Promise<ProductDocument> {
+    const product = await this.productModel
+      .findByIdAndUpdate(
+        productId,
+        { $set: { sliderNumber: sliderNumber ?? null } },
+        { new: true },
+      )
+      .populate('brandId', 'name slug')
+      .populate('categoryId', 'name slug')
+      .populate('childCategoryId', 'name slug')
+      .exec();
+
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${productId} not found`);
+    }
+
+    void this.frontRevalidate.revalidateTags(
+      FRONT_PRODUCTS_TAGS as unknown as string[],
+    );
+
+    return product;
+  }
+
+  async getSliderGroups(language?: 'ka' | 'en'): Promise<{
+    1: (ProductDocument | Record<string, unknown>)[];
+    2: (ProductDocument | Record<string, unknown>)[];
+    3: (ProductDocument | Record<string, unknown>)[];
+    4: (ProductDocument | Record<string, unknown>)[];
+    5: (ProductDocument | Record<string, unknown>)[];
+  }> {
+    const products = (await this.productModel
+      .find({ sliderNumber: { $in: [1, 2, 3, 4, 5] } })
+      .populate('brandId', 'name slug')
+      .populate('categoryId', 'name slug')
+      .populate('childCategoryId', 'name slug')
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec()) as unknown as FlattenMaps<ProductType>[];
+
+    const groups: {
+      1: (ProductDocument | Record<string, unknown>)[];
+      2: (ProductDocument | Record<string, unknown>)[];
+      3: (ProductDocument | Record<string, unknown>)[];
+      4: (ProductDocument | Record<string, unknown>)[];
+      5: (ProductDocument | Record<string, unknown>)[];
+    } = { 1: [], 2: [], 3: [], 4: [], 5: [] };
+
+    let lang: 'ka' | 'en' | undefined = language;
+    if (!lang) {
+      try {
+        lang = this.translationHelper.currentLanguage;
+      } catch {
+        lang = 'ka';
+      }
+    }
+
+    for (const product of products) {
+      const num = (product as unknown as { sliderNumber: number }).sliderNumber;
+      if (num >= 1 && num <= 5) {
+        const transformed = this.transformProductByLanguage(product, lang);
+        groups[num as 1 | 2 | 3 | 4 | 5].push(transformed);
+      }
+    }
+
+    return groups;
+  }
+
   async getHomepageBrandSliders(options?: {
     brandLimit?: number;
     productsLimit?: number;

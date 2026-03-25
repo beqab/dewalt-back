@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Delete,
@@ -25,6 +26,7 @@ import {
   ProductPublicResponseDto,
   ProductResponseDto,
 } from './dto';
+import { UpdateSliderNumberDto } from './dto/update-slider-number.dto';
 import { SyncFinaQuantitiesResponseDto } from './dto/sync-fina-quantities.response.dto';
 import { AdminAuthGuard } from '../guards/admin.guard';
 import { ProductDocument } from './entities';
@@ -86,6 +88,42 @@ export class ProductsController {
       brandLimit: Number.isFinite(brandLimitNum) ? brandLimitNum : 3,
       productsLimit: Number.isFinite(productsLimitNum) ? productsLimitNum : 10,
     });
+  }
+
+  @Get('slider-groups')
+  @ApiOperation({
+    summary: 'Get products grouped by slider number (1-5)',
+    description:
+      'Returns an object with keys 1-5, each containing an array of products assigned to that slider group.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Slider groups retrieved successfully',
+  })
+  getSliderGroups() {
+    return this.productsService.getSliderGroups();
+  }
+
+  @Patch(':id/slider-number')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Update slider number for a product (admin only)',
+    description:
+      'Set sliderNumber to 1-5 to assign the product to a slider group, or null to remove it.',
+  })
+  @ApiParam({ name: 'id', description: 'Product ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Slider number updated successfully',
+    type: ProductResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  updateSliderNumber(
+    @Param('id') id: string,
+    @Body() dto: UpdateSliderNumberDto,
+  ) {
+    return this.productsService.updateSliderNumber(id, dto.sliderNumber);
   }
 
   @Get()
