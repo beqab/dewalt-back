@@ -491,10 +491,27 @@ export class CategoriesService {
         .find()
         .populate('brandIds', 'name slug')
         .populate('categoryId', 'name slug')
-        .sort({ createdAt: -1 })
+        .sort({ sortOrder: 1, createdAt: -1 })
         .exec();
     } catch (error) {
       throw new BadRequestException('Failed to fetch child categories');
+    }
+  }
+
+  async reorderChildCategories(childCategoryIds: string[]): Promise<void> {
+    try {
+      const bulkOps = childCategoryIds.map((id, index) => ({
+        updateOne: {
+          filter: { _id: id },
+          update: { $set: { sortOrder: index } },
+        },
+      }));
+
+      await this.childCategoryModel.bulkWrite(bulkOps);
+
+      void this.frontRevalidate.revalidateTags(FRONT_MENU_TAGS);
+    } catch (error) {
+      throw new BadRequestException('Failed to reorder child categories');
     }
   }
 
@@ -600,7 +617,7 @@ export class CategoriesService {
           .find({ _id: { $in: groupIds } })
           .populate('brandIds', 'name slug')
           .populate('categoryId', 'name slug')
-          .sort({ createdAt: -1 })
+          .sort({ sortOrder: 1, createdAt: -1 })
           .exec();
       }
 
@@ -608,7 +625,7 @@ export class CategoriesService {
         .find({ brandIds: brandId, categoryId })
         .populate('brandIds', 'name slug')
         .populate('categoryId', 'name slug')
-        .sort({ createdAt: -1 })
+        .sort({ sortOrder: 1, createdAt: -1 })
         .exec();
     } catch (error) {
       throw new BadRequestException(
@@ -830,7 +847,11 @@ export class CategoriesService {
           .sort({ sortOrder: 1, createdAt: -1 })
           .lean()
           .exec(),
-        this.childCategoryModel.find().lean().exec(),
+        this.childCategoryModel
+          .find()
+          .sort({ sortOrder: 1, createdAt: -1 })
+          .lean()
+          .exec(),
         this.brandCategoryChildGroupModel.find().lean().exec(),
       ]);
 
@@ -875,6 +896,33 @@ export class CategoriesService {
         groupByKey.set(key, ids);
       }
 
+      const sortChildCategoriesByOrder = (items: any[]): any[] =>
+        [...items].sort((a, b) => {
+          const sortOrderA =
+            typeof a.sortOrder === 'number'
+              ? a.sortOrder
+              : Number.MAX_SAFE_INTEGER;
+          const sortOrderB =
+            typeof b.sortOrder === 'number'
+              ? b.sortOrder
+              : Number.MAX_SAFE_INTEGER;
+
+          if (sortOrderA !== sortOrderB) {
+            return sortOrderA - sortOrderB;
+          }
+
+          const createdAtA =
+            typeof a.createdAt === 'string' || a.createdAt instanceof Date
+              ? new Date(a.createdAt as string | number | Date).getTime()
+              : 0;
+          const createdAtB =
+            typeof b.createdAt === 'string' || b.createdAt instanceof Date
+              ? new Date(b.createdAt as string | number | Date).getTime()
+              : 0;
+
+          return createdAtB - createdAtA;
+        });
+
       const menuBrands: MenuBrand[] = brands.map((brand) => {
         const brandId = String(brand._id);
 
@@ -891,31 +939,33 @@ export class CategoriesService {
 
             const groupKey = `${brandId}:${categoryId}`;
             const groupIds = groupByKey.get(groupKey);
-            const relatedChildCategories = groupIds
-              ? groupIds
-                  .map((id): unknown => childCategoryById.get(id))
-                  .filter((child): child is Record<string, unknown> =>
-                    Boolean(child),
-                  )
-              : childCategories.filter((child) => {
-                  const childBrandIds = (child.brandIds || []).map((id) =>
-                    String(id),
-                  );
-                  const childCategoryId = child.categoryId
-                    ? String(child.categoryId)
-                    : null;
+            const relatedChildCategories = sortChildCategoriesByOrder(
+              groupIds
+                ? groupIds
+                    .map((id): unknown => childCategoryById.get(id))
+                    .filter((child): child is Record<string, unknown> =>
+                      Boolean(child),
+                    )
+                : childCategories.filter((child) => {
+                    const childBrandIds = (child.brandIds || []).map((id) =>
+                      String(id),
+                    );
+                    const childCategoryId = child.categoryId
+                      ? String(child.categoryId)
+                      : null;
 
-                  return (
-                    childCategoryId === categoryId &&
-                    childBrandIds.includes(brandId)
-                  );
-                });
+                    return (
+                      childCategoryId === categoryId &&
+                      childBrandIds.includes(brandId)
+                    );
+                  }),
+            );
 
             const subCategories: MenuSubCategory[] = relatedChildCategories.map(
               (child) => ({
                 id: String(child._id),
                 name: translateName(child.name as LocalizedText),
-                slug: child.slug,
+                slug: String(child.slug),
               }),
             );
 

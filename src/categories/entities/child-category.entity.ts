@@ -30,6 +30,9 @@ export class ChildCategory {
   })
   categoryId?: MongooseSchema.Types.ObjectId; // Optional, can be assigned later
 
+  @Prop({ type: Number, default: 0 })
+  sortOrder: number;
+
   @Prop({ default: Date.now })
   createdAt: Date;
 

@@ -7,4 +7,5 @@ export * from './create-child-category.dto';
 export * from './update-child-category.dto';
 export * from './set-child-category-group.dto';
 export * from './reorder-categories.dto';
+export * from './reorder-child-categories.dto';
 export * from './category-response.dto';
