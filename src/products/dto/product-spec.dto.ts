@@ -1,26 +1,28 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, ValidateNested } from 'class-validator';
+import { IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { LocalizedTextDto } from '../../categories/dto/localized-text.dto';
+import { OptionalLocalizedTextDto } from '../../categories/dto/optional-localized-text.dto';
 
 export class ProductSpecDto {
   @ApiProperty({
     description: 'Specification label (localized)',
     example: { ka: 'სიმძლავრე', en: 'Power' },
-    type: LocalizedTextDto,
+    type: OptionalLocalizedTextDto,
+    required: false,
   })
-  @IsNotEmpty()
+  @IsOptional()
   @ValidateNested()
-  @Type(() => LocalizedTextDto)
-  label: LocalizedTextDto;
+  @Type(() => OptionalLocalizedTextDto)
+  label: OptionalLocalizedTextDto;
 
   @ApiProperty({
     description: 'Specification value (localized)',
     example: { ka: '720', en: '720' },
-    type: LocalizedTextDto,
+    type: OptionalLocalizedTextDto,
+    required: false,
   })
-  @IsNotEmpty()
+  @IsOptional()
   @ValidateNested()
-  @Type(() => LocalizedTextDto)
-  value: LocalizedTextDto;
+  @Type(() => OptionalLocalizedTextDto)
+  value: OptionalLocalizedTextDto;
 }

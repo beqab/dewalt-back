@@ -6,19 +6,19 @@ import type { LocalizedText } from '../../categories/types/localized-text.interf
 export class ProductSpec {
   @Prop({
     type: {
-      ka: { type: String, required: true },
-      en: { type: String, required: true },
+      ka: { type: String, required: false, default: '' },
+      en: { type: String, required: false, default: '' },
     },
-    required: true,
+    required: false,
   })
   label: LocalizedText;
 
   @Prop({
     type: {
-      ka: { type: String, required: true },
-      en: { type: String, required: true },
+      ka: { type: String, required: false, default: '' },
+      en: { type: String, required: false, default: '' },
     },
-    required: true,
+    required: false,
   })
   value: LocalizedText;
 }
@@ -26,12 +26,12 @@ export class ProductSpec {
 export const ProductSpecSchema = new MongooseSchema(
   {
     label: {
-      ka: { type: String, required: true },
-      en: { type: String, required: true },
+      ka: { type: String, required: false, default: '' },
+      en: { type: String, required: false, default: '' },
     },
     value: {
-      ka: { type: String, required: true },
-      en: { type: String, required: true },
+      ka: { type: String, required: false, default: '' },
+      en: { type: String, required: false, default: '' },
     },
   },
   { _id: false },
