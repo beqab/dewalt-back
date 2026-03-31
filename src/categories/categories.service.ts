@@ -252,7 +252,7 @@ export class CategoriesService {
       return await this.categoryModel
         .find()
         .populate('brandIds', 'name slug')
-        .sort({ createdAt: -1 })
+        .sort({ sortOrder: 1, createdAt: -1 })
         .exec();
     } catch (error) {
       throw new BadRequestException('Failed to fetch categories');
@@ -264,10 +264,27 @@ export class CategoriesService {
       return await this.categoryModel
         .find({ brandIds: brandId })
         .populate('brandIds', 'name slug')
-        .sort({ createdAt: -1 })
+        .sort({ sortOrder: 1, createdAt: -1 })
         .exec();
     } catch (error) {
       throw new BadRequestException('Failed to fetch categories by brand');
+    }
+  }
+
+  async reorderCategories(categoryIds: string[]): Promise<void> {
+    try {
+      const bulkOps = categoryIds.map((id, index) => ({
+        updateOne: {
+          filter: { _id: id },
+          update: { $set: { sortOrder: index } },
+        },
+      }));
+
+      await this.categoryModel.bulkWrite(bulkOps);
+
+      void this.frontRevalidate.revalidateTags(FRONT_MENU_TAGS);
+    } catch (error) {
+      throw new BadRequestException('Failed to reorder categories');
     }
   }
 
@@ -808,7 +825,11 @@ export class CategoriesService {
         any[],
       ] = await Promise.all([
         this.brandModel.find().lean().exec(),
-        this.categoryModel.find().lean().exec(),
+        this.categoryModel
+          .find()
+          .sort({ sortOrder: 1, createdAt: -1 })
+          .lean()
+          .exec(),
         this.childCategoryModel.find().lean().exec(),
         this.brandCategoryChildGroupModel.find().lean().exec(),
       ]);

@@ -33,6 +33,7 @@ import {
   ChildCategoryResponseDto,
   ChildCategoryGroupResponseDto,
   SetChildCategoryGroupDto,
+  ReorderCategoriesDto,
 } from './dto';
 import { AdminAuthGuard } from '../guards/admin.guard';
 
@@ -186,6 +187,20 @@ export class CategoriesController {
   })
   createCategory(@Body() createCategoryDto: CreateCategoryDto) {
     return this.categoriesService.createCategory(createCategoryDto);
+  }
+
+  @Patch('categories/reorder')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Reorder categories (admin only)' })
+  @ApiResponse({
+    status: 204,
+    description: 'Categories reordered successfully',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  reorderCategories(@Body() reorderDto: ReorderCategoriesDto) {
+    return this.categoriesService.reorderCategories(reorderDto.categoryIds);
   }
 
   @Patch('categories/:id')

@@ -21,7 +21,10 @@ export class Category {
     type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Brand' }],
     default: [],
   })
-  brandIds: MongooseSchema.Types.ObjectId[]; // Many-to-many relationship with brands
+  brandIds: MongooseSchema.Types.ObjectId[];
+
+  @Prop({ type: Number, default: 0 })
+  sortOrder: number;
 
   @Prop({ default: Date.now })
   createdAt: Date;
