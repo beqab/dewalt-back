@@ -4,4 +4,5 @@ export * from './product-spec.dto';
 export * from './product-public-response.dto';
 export * from './homepage-brand-sliders-response.dto';
 export * from './sync-fina-quantities.response.dto';
+export * from './reorder-products.dto';
 export * from './update-slider-number.dto';

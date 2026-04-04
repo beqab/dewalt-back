@@ -85,6 +85,9 @@ export class Product {
   })
   sliderNumber: number | null;
 
+  @Prop({ type: Number, required: false, default: 0, index: true })
+  sortOrder: number;
+
   @Prop({ type: [ProductSpecSchema], default: [] })
   specs: ProductSpec[];
 
@@ -106,3 +109,4 @@ ProductSchema.index({ childCategoryId: 1 });
 ProductSchema.index({ price: 1 });
 ProductSchema.index({ quantity: 1 });
 ProductSchema.index({ sliderNumber: 1 });
+ProductSchema.index({ childCategoryId: 1, sortOrder: 1, createdAt: -1 });

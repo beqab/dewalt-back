@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -24,6 +25,7 @@ import {
   CreateProductDto,
   HomepageBrandSliderDto,
   ProductPublicResponseDto,
+  ReorderProductsDto,
   ProductResponseDto,
 } from './dto';
 import { UpdateSliderNumberDto } from './dto/update-slider-number.dto';
@@ -124,6 +126,38 @@ export class ProductsController {
     @Body() dto: UpdateSliderNumberDto,
   ) {
     return this.productsService.updateSliderNumber(id, dto.sliderNumber);
+  }
+
+  @Patch('admin/reorder')
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Reorder products inside a child category (admin only)',
+    description:
+      'Updates product sortOrder values based on the provided ordered product IDs for the selected child category.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Products reordered successfully',
+  })
+  reorderProducts(@Body() reorderDto: unknown): Promise<void> {
+    if (!reorderDto || typeof reorderDto !== 'object') {
+      throw new BadRequestException('Invalid reorder payload');
+    }
+
+    const payload = reorderDto as Record<string, unknown>;
+    const productIds = payload.productIds;
+    const childCategoryId = payload.childCategoryId;
+
+    if (
+      !Array.isArray(productIds) ||
+      !productIds.every((id) => typeof id === 'string') ||
+      typeof childCategoryId !== 'string'
+    ) {
+      throw new BadRequestException('Invalid reorder payload');
+    }
+
+    return this.productsService.reorderProducts(productIds, childCategoryId);
   }
 
   @Get()

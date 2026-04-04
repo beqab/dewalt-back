@@ -54,6 +54,23 @@ export class ProductsService {
     private finaService: FinaService,
   ) {}
 
+  private async getNextSortOrder(childCategoryId?: string): Promise<number> {
+    if (!childCategoryId) {
+      return 0;
+    }
+
+    const lastProduct = await this.productModel
+      .findOne({ childCategoryId: new Types.ObjectId(childCategoryId) })
+      .sort({ sortOrder: -1, createdAt: -1 })
+      .select('sortOrder')
+      .lean()
+      .exec();
+
+    return typeof lastProduct?.sortOrder === 'number'
+      ? lastProduct.sortOrder + 1
+      : 0;
+  }
+
   async syncQuantitiesFromFina(): Promise<SyncFinaQuantitiesResponseDto> {
     // Step 1: Find all local products with a valid finaId
     const local = (await this.productModel
@@ -179,6 +196,53 @@ export class ProductsService {
     );
 
     return product;
+  }
+
+  async reorderProducts(
+    productIds: string[],
+    childCategoryId: string,
+  ): Promise<void> {
+    try {
+      const childCategoryObjectId = new Types.ObjectId(childCategoryId);
+      const productObjectIds = productIds.map((id) => new Types.ObjectId(id));
+
+      const matchingProducts = await this.productModel
+        .find({
+          _id: { $in: productObjectIds },
+          childCategoryId: childCategoryObjectId,
+        })
+        .select('_id')
+        .lean()
+        .exec();
+
+      if (matchingProducts.length !== productIds.length) {
+        throw new BadRequestException(
+          'Some products do not belong to the selected child category',
+        );
+      }
+
+      await this.productModel.bulkWrite(
+        productIds.map((id, index) => ({
+          updateOne: {
+            filter: {
+              _id: new Types.ObjectId(id),
+              childCategoryId: childCategoryObjectId,
+            },
+            update: { $set: { sortOrder: index } },
+          },
+        })),
+      );
+
+      void this.frontRevalidate.revalidateTags(
+        FRONT_PRODUCTS_TAGS as unknown as string[],
+      );
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException('Failed to reorder products');
+    }
   }
 
   async getSliderGroups(language?: 'ka' | 'en'): Promise<{
@@ -511,6 +575,8 @@ export class ProductsService {
           sortOrder = { price: -1 };
         }
         // If sort is empty or invalid, use default (createdAt: -1)
+      } else if (filters?.childCategoryId || filters?.childCategorySlug) {
+        sortOrder = { sortOrder: 1, createdAt: -1 };
       }
 
       const [data, total] = await Promise.all([
@@ -853,7 +919,14 @@ export class ProductsService {
         }
       }
 
-      const created = await this.productModel.create(createProductDto);
+      const sortOrder = await this.getNextSortOrder(
+        createProductDto.childCategoryId,
+      );
+
+      const created = await this.productModel.create({
+        ...createProductDto,
+        sortOrder,
+      });
       void this.frontRevalidate.revalidateTags(
         FRONT_PRODUCTS_TAGS as unknown as string[],
       );
@@ -915,8 +988,23 @@ export class ProductsService {
         }
       }
 
+      const currentChildCategoryId =
+        product.childCategoryId instanceof Types.ObjectId
+          ? product.childCategoryId.toHexString()
+          : undefined;
+      const nextChildCategoryId = updateProductDto.childCategoryId;
+      const shouldResetSortOrder =
+        !!nextChildCategoryId && nextChildCategoryId !== currentChildCategoryId;
+
+      const payload = shouldResetSortOrder
+        ? {
+            ...updateProductDto,
+            sortOrder: await this.getNextSortOrder(nextChildCategoryId),
+          }
+        : updateProductDto;
+
       const updatedProduct = await this.productModel
-        .findByIdAndUpdate(id, updateProductDto, { new: true })
+        .findByIdAndUpdate(id, payload, { new: true })
         .populate('brandId', 'name slug')
         .populate('categoryId', 'name slug')
         .populate('childCategoryId', 'name slug')

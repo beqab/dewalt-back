@@ -109,6 +109,13 @@ export class ProductResponseDto {
   childCategoryId?: string | ChildCategoryResponseDto;
 
   @ApiProperty({
+    description: 'Manual sort order inside the child category',
+    example: 0,
+    required: false,
+  })
+  sortOrder?: number;
+
+  @ApiProperty({
     description: 'Product specifications',
     type: [ProductSpecDto],
   })
