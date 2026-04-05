@@ -51,6 +51,30 @@ export class UpdateSettingsDto {
   @Type(() => LocalizedTextDto)
   contactAddress?: LocalizedTextDto;
 
+  @ApiPropertyOptional({
+    example: { ka: 'ჩვენ შესახებ', en: 'About us' },
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
+  aboutTitle?: LocalizedTextDto;
+
+  @ApiPropertyOptional({
+    example: { ka: 'ქვე სათაური', en: 'Subtitle' },
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
+  aboutSubtitle?: LocalizedTextDto;
+
+  @ApiPropertyOptional({
+    example: { ka: '<p>ტექსტი</p>', en: '<p>Content</p>' },
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LocalizedTextDto)
+  aboutContent?: LocalizedTextDto;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()

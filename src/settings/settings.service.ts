@@ -16,6 +16,25 @@ function isLegacyAddress(value: unknown): value is string {
   return typeof value === 'string';
 }
 
+function normalizeLocalizedText(value: unknown) {
+  if (!value || typeof value !== 'object') return undefined;
+
+  const localized = value as { ka?: unknown; en?: unknown };
+  const normalized = {
+    ka: typeof localized.ka === 'string' ? localized.ka : undefined,
+    en: typeof localized.en === 'string' ? localized.en : undefined,
+  };
+
+  if (normalized.ka === undefined && normalized.en === undefined) {
+    return undefined;
+  }
+
+  return {
+    ka: normalized.ka ?? '',
+    en: normalized.en ?? '',
+  };
+}
+
 @Injectable()
 export class SettingsService {
   constructor(
@@ -68,23 +87,22 @@ export class SettingsService {
   async updateSettings(dto: UpdateSettingsDto): Promise<SettingsDocument> {
     const update = pickDefined(dto);
 
-    // Avoid writing empty localized address object if nothing provided
-    const addr = (update as unknown as { contactAddress?: unknown })
-      .contactAddress;
-    if (addr && typeof addr === 'object') {
-      const a = addr as { ka?: unknown; en?: unknown };
-      const normalized = {
-        ka: typeof a.ka === 'string' ? a.ka : undefined,
-        en: typeof a.en === 'string' ? a.en : undefined,
-      };
-      if (normalized.ka === undefined && normalized.en === undefined) {
-        delete (update as unknown as { contactAddress?: unknown })
-          .contactAddress;
+    const localizedFields = [
+      'contactAddress',
+      'aboutTitle',
+      'aboutSubtitle',
+      'aboutContent',
+    ] as const;
+
+    for (const field of localizedFields) {
+      const normalized = normalizeLocalizedText(
+        (update as Record<string, unknown>)[field],
+      );
+
+      if (normalized === undefined) {
+        delete (update as Record<string, unknown>)[field];
       } else {
-        (update as unknown as { contactAddress?: unknown }).contactAddress = {
-          ...(normalized.ka !== undefined ? { ka: normalized.ka } : {}),
-          ...(normalized.en !== undefined ? { en: normalized.en } : {}),
-        };
+        (update as Record<string, unknown>)[field] = normalized;
       }
     }
 

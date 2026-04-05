@@ -31,6 +31,36 @@ export class Settings {
   })
   contactAddress?: LocalizedText;
 
+  @Prop({
+    type: {
+      ka: { type: String, default: '' },
+      en: { type: String, default: '' },
+    },
+    required: false,
+    default: { ka: '', en: '' },
+  })
+  aboutTitle?: LocalizedText;
+
+  @Prop({
+    type: {
+      ka: { type: String, default: '' },
+      en: { type: String, default: '' },
+    },
+    required: false,
+    default: { ka: '', en: '' },
+  })
+  aboutSubtitle?: LocalizedText;
+
+  @Prop({
+    type: {
+      ka: { type: String, default: '' },
+      en: { type: String, default: '' },
+    },
+    required: false,
+    default: { ka: '', en: '' },
+  })
+  aboutContent?: LocalizedText;
+
   // Delivery rules
   @Prop({ type: Boolean, required: true, default: true })
   freeDeliveryEnabled: boolean;
