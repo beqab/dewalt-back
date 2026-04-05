@@ -50,6 +50,9 @@ export class Product {
   @Prop({ type: Number, default: 0, min: 0 })
   quantity: number; // Stock quantity
 
+  @Prop({ type: Boolean, default: false })
+  orderOnly: boolean; // Product can only be ordered, not added to cart
+
   @Prop({ type: Number, default: 0, min: 0, max: 5 })
   rating: number; // Average rating (0-5)
 

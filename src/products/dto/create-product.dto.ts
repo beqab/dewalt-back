@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsString,
   IsNumber,
+  IsBoolean,
   IsOptional,
   IsInt,
   IsMongoId,
@@ -121,6 +122,16 @@ export class CreateProductDto {
   @IsNumber()
   @Min(0)
   quantity?: number;
+
+  @ApiProperty({
+    description: 'Whether the product is order only',
+    example: false,
+    required: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  orderOnly?: boolean;
 
   @ApiProperty({
     description: 'Average rating (0-5)',

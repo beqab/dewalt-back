@@ -78,6 +78,13 @@ export class ProductResponseDto {
   discount?: number;
 
   @ApiProperty({
+    description: 'Whether the product is order only',
+    example: false,
+    required: false,
+  })
+  orderOnly?: boolean;
+
+  @ApiProperty({
     description: 'Average rating',
     example: 4.5,
   })

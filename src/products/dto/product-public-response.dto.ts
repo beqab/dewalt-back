@@ -69,6 +69,13 @@ export class ProductPublicResponseDto {
   })
   discount?: number;
 
+  @ApiProperty({
+    description: 'Whether the product is order only',
+    example: false,
+    required: false,
+  })
+  orderOnly?: boolean;
+
   @ApiProperty({ description: 'Quantity', example: 1 })
   quantity: number;
 
