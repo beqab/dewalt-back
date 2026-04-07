@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { FRONT_SETTINGS_TAGS } from '../revalidate/front-cache-tags';
+import { FrontRevalidateService } from '../revalidate/front-revalidate.service';
 import { Settings, SettingsDocument } from './entities/settings.entity';
 import { UpdateSettingsDto } from './dto/update-settings.dto';
 
@@ -40,6 +42,7 @@ export class SettingsService {
   constructor(
     @InjectModel(Settings.name)
     private settingsModel: Model<SettingsDocument>,
+    private frontRevalidate: FrontRevalidateService,
   ) {}
 
   async getSettings(): Promise<SettingsDocument> {
@@ -106,7 +109,7 @@ export class SettingsService {
       }
     }
 
-    return this.settingsModel
+    const settings = await this.settingsModel
       .findOneAndUpdate(
         { key: 'main' },
         {
@@ -118,5 +121,9 @@ export class SettingsService {
         { upsert: true, new: true, setDefaultsOnInsert: true },
       )
       .exec();
+
+    void this.frontRevalidate.revalidateTags(FRONT_SETTINGS_TAGS as string[]);
+
+    return settings;
   }
 }

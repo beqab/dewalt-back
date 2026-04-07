@@ -3,6 +3,7 @@
  * These must match `dewalt-front/lib/cacheTags.ts`.
  */
 export const FRONT_MENU_TAGS: string[] = ['menu'];
+export const FRONT_SETTINGS_TAGS: string[] = ['settings'];
 export const FRONT_BANNER_TAGS: string[] = ['banner-carousel'];
 export const FRONT_ADS_TAGS: string[] = ['ads'];
 export const FRONT_NEWS_TAGS: string[] = ['news'];
@@ -15,6 +16,9 @@ export const FRONT_CACHE_TAGS = {
    */
   menu: {
     all: FRONT_MENU_TAGS,
+  },
+  settings: {
+    all: FRONT_SETTINGS_TAGS,
   },
   bannerCarousel: {
     all: FRONT_BANNER_TAGS,
