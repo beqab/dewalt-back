@@ -43,6 +43,11 @@ export class UpdateSettingsDto {
   @IsString()
   contactFacebook?: string;
 
+  @ApiPropertyOptional({ example: 'https://instagram.com/dewalt' })
+  @IsOptional()
+  @IsString()
+  contactInstagram?: string;
+
   @ApiPropertyOptional({
     example: { ka: 'თბილისი, ...', en: 'Tbilisi, ...' },
   })

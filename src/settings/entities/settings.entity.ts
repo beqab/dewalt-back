@@ -21,6 +21,9 @@ export class Settings {
   @Prop({ type: String, required: false })
   contactFacebook?: string;
 
+  @Prop({ type: String, required: false })
+  contactInstagram?: string;
+
   @Prop({
     type: {
       ka: { type: String, default: '' },
