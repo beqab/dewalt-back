@@ -20,6 +20,7 @@ import { OrdersModule } from './orders/orders.module';
 import { RevalidateModule } from './revalidate/revalidate.module';
 import { FinaModule } from './fina/fina.module';
 import { SettingsModule } from './settings/settings.module';
+import { TermsModule } from './terms/terms.module';
 
 @Module({
   imports: [
@@ -103,6 +104,7 @@ import { SettingsModule } from './settings/settings.module';
     RevalidateModule,
     FinaModule,
     SettingsModule,
+    TermsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
