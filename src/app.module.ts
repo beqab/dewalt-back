@@ -21,6 +21,8 @@ import { RevalidateModule } from './revalidate/revalidate.module';
 import { FinaModule } from './fina/fina.module';
 import { SettingsModule } from './settings/settings.module';
 import { TermsModule } from './terms/terms.module';
+import { BrandContentModule } from './brand-content/brand-content.module';
+import { ServiceCenterModule } from './service-center/service-center.module';
 
 @Module({
   imports: [
@@ -105,6 +107,8 @@ import { TermsModule } from './terms/terms.module';
     FinaModule,
     SettingsModule,
     TermsModule,
+    BrandContentModule,
+    ServiceCenterModule,
   ],
   controllers: [AppController],
   providers: [AppService],
