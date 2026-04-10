@@ -14,7 +14,6 @@ import {
 } from '../categories/entities/child-category.entity';
 import { TranslationModule } from '../translation/translation.module';
 import { FinaModule } from '../fina/fina.module';
-
 @Module({
   imports: [
     TranslationModule,

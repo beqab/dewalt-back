@@ -418,6 +418,28 @@ export class ProductsService {
     }
   }
 
+  /**
+   * Reserved child category slug `all`: listing should not filter by
+   * childCategoryId (show all subcategories under brand + category).
+   */
+  private async shouldSkipChildCategoryFilter(
+    childCategoryId?: string,
+    childCategorySlug?: string,
+  ): Promise<boolean> {
+    const raw = (childCategoryId || childCategorySlug || '').trim();
+    if (!raw) return false;
+    if (raw.toLowerCase() === 'all') return true;
+    const resolvedId = await this.resolveIdFromSlugOrId(raw, 'childCategory');
+    if (!resolvedId) return false;
+    const doc = await this.childCategoryModel
+      .findById(resolvedId)
+      .select('slug')
+      .lean()
+      .exec();
+    const slug = (doc as { slug?: string } | null)?.slug;
+    return slug !== undefined && slug.toLowerCase() === 'all';
+  }
+
   async findAll(
     page = 1,
     limit = 10,
@@ -509,8 +531,16 @@ export class ProductsService {
         }
       }
 
+      const skipChildCategoryFilter = await this.shouldSkipChildCategoryFilter(
+        filters?.childCategoryId,
+        filters?.childCategorySlug,
+      );
+
       // Resolve child category (ID or slug)
-      if (filters?.childCategoryId || filters?.childCategorySlug) {
+      if (
+        (filters?.childCategoryId || filters?.childCategorySlug) &&
+        !skipChildCategoryFilter
+      ) {
         const childCategoryValue =
           filters.childCategoryId || filters.childCategorySlug;
         if (childCategoryValue) {
@@ -575,7 +605,10 @@ export class ProductsService {
           sortOrder = { price: -1 };
         }
         // If sort is empty or invalid, use default (createdAt: -1)
-      } else if (filters?.childCategoryId || filters?.childCategorySlug) {
+      } else if (
+        (filters?.childCategoryId || filters?.childCategorySlug) &&
+        !skipChildCategoryFilter
+      ) {
         sortOrder = { sortOrder: 1, createdAt: -1 };
       }
 
