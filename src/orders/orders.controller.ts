@@ -204,4 +204,20 @@ export class OrdersController {
   updateStatus(@Body() updateOrderDto: UpdateOrderDto): Promise<Order> {
     return this.ordersService.updateStatus(updateOrderDto);
   }
+
+  @Post('admin/release-expired-reservations')
+  // @UseGuards(AdminAuthGuard)
+  // @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Release expired stock reservations for pending orders',
+  })
+  @ApiQuery({ name: 'minutes', required: false, type: Number })
+  releaseExpiredReservations(
+    @Query('minutes') minutes?: number,
+  ): Promise<{ scanned: number; released: number; ttlMinutes: number }> {
+    return this.ordersService.releaseExpiredReservations(
+      minutes ? Number(minutes) : undefined,
+    );
+  }
 }

@@ -112,6 +112,15 @@ export class Order {
   })
   status: OrderStatus;
 
+  @Prop({ type: Boolean, default: false })
+  stockReserved: boolean;
+
+  @Prop({ type: Date, required: false })
+  stockReservedAt?: Date;
+
+  @Prop({ type: Date, required: false })
+  stockReservationExpiresAt?: Date;
+
   @Prop({ type: [OrderItemSchema], required: true })
   items: OrderItem[];
 
@@ -151,4 +160,9 @@ export class Order {
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
+OrderSchema.index({
+  status: 1,
+  stockReserved: 1,
+  stockReservationExpiresAt: 1,
+});
 export type OrderDocument = Order & Document;

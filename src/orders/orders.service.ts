@@ -21,6 +21,8 @@ import { EmailService } from '../email/email.service';
 import { SettingsService } from '../settings/settings.service';
 import { FinaService } from '../fina/fina.service';
 import { SaveDocProductOutDto } from '../fina/dto/save-doc-product-out.dto';
+import { FrontRevalidateService } from '../revalidate/front-revalidate.service';
+import { FRONT_PRODUCTS_TAGS } from '../revalidate/front-cache-tags';
 
 type LocalizedText = { ka: string; en: string };
 
@@ -88,6 +90,7 @@ export class OrdersService {
     private readonly emailService: EmailService,
     private readonly settingsService: SettingsService,
     private readonly finaService: FinaService,
+    private readonly frontRevalidate: FrontRevalidateService,
   ) {}
 
   private async syncFinaDocProductOut(
@@ -221,9 +224,20 @@ export class OrdersService {
     return null;
   }
 
-  private async decrementStockForPaidOrder(
-    order: OrderDocument,
-  ): Promise<void> {
+  private getOrderReservationTtlMinutes(): number {
+    const rawValue = Number(process.env.ORDER_STOCK_RESERVATION_MINUTES);
+    return Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 15;
+  }
+
+  private getReservationExpiresAt(
+    minutes = this.getOrderReservationTtlMinutes(),
+  ) {
+    return new Date(Date.now() + minutes * 60 * 1000);
+  }
+
+  private collectRequiredProductQuantities(
+    order: Pick<OrderDocument, 'items'>,
+  ): Map<string, number> {
     const requiredByProduct = new Map<string, number>();
 
     for (const item of order.items || []) {
@@ -235,6 +249,55 @@ export class OrdersService {
         (requiredByProduct.get(productId) ?? 0) + item.quantity,
       );
     }
+
+    return requiredByProduct;
+  }
+
+  private markStockReservation(
+    order: OrderDocument,
+    expiresAt = this.getReservationExpiresAt(),
+  ): void {
+    order.stockReserved = true;
+    order.stockReservedAt = new Date();
+    order.stockReservationExpiresAt = expiresAt;
+  }
+
+  private clearStockReservation(order: OrderDocument): void {
+    order.stockReserved = false;
+    order.stockReservedAt = undefined;
+    order.stockReservationExpiresAt = undefined;
+  }
+
+  private getLocalizedProductName(
+    value: LocalizedText | string | null | undefined,
+    locale: 'ka' | 'en' = 'ka',
+  ): string {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+
+    if (value && typeof value === 'object') {
+      const localizedValue = value[locale] || value.ka || value.en;
+      if (typeof localizedValue === 'string' && localizedValue.trim()) {
+        return localizedValue.trim();
+      }
+    }
+
+    return 'პროდუქტი';
+  }
+
+  private buildInsufficientStockMessage(params: {
+    name: string;
+    requestedQuantity: number;
+    availableQuantity: number;
+  }): string {
+    const { name, requestedQuantity, availableQuantity } = params;
+
+    return `პროდუქტი ${name} მოთხოვნილი რაოდენობით არ არის მარაგში. მოთხოვნილი: ${requestedQuantity}, ხელმისაწვდომი: ${availableQuantity} . გთხოვთ განაახლოთ კალათა და სცადოთ თავიდან.`;
+  }
+
+  private async reserveStockForOrder(order: OrderDocument): Promise<void> {
+    const requiredByProduct = this.collectRequiredProductQuantities(order);
 
     if (requiredByProduct.size === 0) return;
 
@@ -263,8 +326,24 @@ export class OrdersService {
           .exec();
 
         if (!updatedProduct) {
+          const currentProduct = await this.productModel
+            .findById(productId)
+            .select('name quantity')
+            .lean()
+            .exec();
+          const availableQuantity =
+            typeof currentProduct?.quantity === 'number'
+              ? currentProduct.quantity
+              : 0;
+          const productName = this.getLocalizedProductName(
+            (currentProduct?.name as LocalizedText | undefined) ?? undefined,
+          );
           throw new BadRequestException(
-            `Insufficient stock for product ${productId}`,
+            this.buildInsufficientStockMessage({
+              name: productName,
+              requestedQuantity: quantity,
+              availableQuantity,
+            }),
           );
         }
 
@@ -286,6 +365,25 @@ export class OrdersService {
 
       throw error;
     }
+  }
+
+  private async releaseReservedStock(order: OrderDocument): Promise<void> {
+    const requiredByProduct = this.collectRequiredProductQuantities(order);
+
+    if (requiredByProduct.size === 0) return;
+
+    await Promise.all(
+      Array.from(requiredByProduct.entries()).map(([productId, quantity]) =>
+        this.productModel
+          .updateOne(
+            { _id: new Types.ObjectId(productId) },
+            {
+              $inc: { quantity },
+            },
+          )
+          .exec(),
+      ),
+    );
   }
 
   private escapeRegex(input: string): string {
@@ -453,7 +551,13 @@ export class OrdersService {
 
       if (availableQuantity < requestedQuantity) {
         throw new BadRequestException(
-          `Insufficient stock for product ${item.productId}`,
+          this.buildInsufficientStockMessage({
+            name: this.getLocalizedProductName(
+              (product.name as LocalizedText | undefined) ?? undefined,
+            ),
+            requestedQuantity,
+            availableQuantity,
+          }),
         );
       }
 
@@ -526,7 +630,7 @@ export class OrdersService {
   }
 
   async createPayment(orderId: string, locale?: 'ka' | 'en') {
-    const order = await this.orderModel.findById(orderId).exec();
+    let order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Order not found');
     }
@@ -544,8 +648,63 @@ export class OrdersService {
     }
 
     const resolvedLocale = locale ?? order.locale ?? 'ka';
-    if (locale && order.locale !== locale) {
-      order.locale = locale;
+    const expiresAt = this.getReservationExpiresAt();
+    let reservedNow = false;
+
+    if (!order.stockReserved) {
+      const claimUpdate: Record<string, unknown> = {
+        stockReserved: true,
+        stockReservedAt: new Date(),
+        stockReservationExpiresAt: expiresAt,
+      };
+      if (locale && order.locale !== locale) {
+        claimUpdate.locale = locale;
+      }
+
+      const claimedOrder = await this.orderModel
+        .findOneAndUpdate(
+          {
+            _id: order._id,
+            status: OrderStatus.Pending,
+            stockReserved: false,
+          },
+          {
+            $set: claimUpdate,
+          },
+          { new: true },
+        )
+        .exec();
+
+      if (claimedOrder) {
+        order = claimedOrder;
+        reservedNow = true;
+        try {
+          await this.reserveStockForOrder(order);
+        } catch (error) {
+          this.clearStockReservation(order);
+          await order.save();
+          throw error;
+        }
+      } else {
+        const freshOrder = await this.orderModel.findById(orderId).exec();
+        if (!freshOrder) {
+          throw new NotFoundException('Order not found');
+        }
+        if (freshOrder.status !== OrderStatus.Pending) {
+          throw new BadRequestException(
+            'Payment link can only be created for pending orders',
+          );
+        }
+        order = freshOrder;
+      }
+    }
+
+    if (!reservedNow) {
+      if (locale && order.locale !== locale) {
+        order.locale = locale;
+      }
+
+      this.markStockReservation(order, expiresAt);
       await order.save();
     }
 
@@ -595,9 +754,31 @@ export class OrdersService {
       });
 
       const data = (await response.json()) as Record<string, unknown>;
+      if (!response.ok) {
+        const responseMessage =
+          typeof data?.message === 'string' && data.message.trim().length > 0
+            ? data.message
+            : 'Flitt API request failed';
+        throw new BadRequestException(responseMessage);
+      }
+
+      const checkoutUrl = (data as { response?: { checkout_url?: unknown } })
+        .response?.checkout_url;
+      if (typeof checkoutUrl !== 'string' || checkoutUrl.trim().length === 0) {
+        throw new BadRequestException('Flitt checkout url missing');
+      }
       console.log(data, 'data+++++++++++++++++');
       return data;
     } catch (error) {
+      if (reservedNow) {
+        await this.releaseReservedStock(order);
+        this.clearStockReservation(order);
+        await order.save();
+      }
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       if (error instanceof Error) {
         console.error('Flitt API error:', error.message);
       }
@@ -728,16 +909,21 @@ export class OrdersService {
       // მომავალში შეიძლება გინდოდეთ უფრო დეტალური mapping:
       // მაგალითად expired / reversed / declined სხვადასხვა შიდა სტატუსებზე.
       if (orderStatus !== 'approved') {
+        if (order.stockReserved) {
+          await this.releaseReservedStock(order);
+          this.clearStockReservation(order);
+        }
         order.status = OrderStatus.Failed;
         await order.save();
         return { status: 'ok' };
       }
 
-      // approved ნიშნავს, რომ callback წარმატებული გადახდის შესახებ გვატყობინებს,
-      // ამიტომ order ოფიციალურად გადაგვყავს paid სტატუსზე.
-      // ამ მომენტში რეალურად ვაკლებთ stock-ს, რადგან მხოლოდ frontend check
-      // overselling-ს ვერ კეტავს და საბოლოო დაცვა backend-ზე უნდა არსებობდეს.
-      await this.decrementStockForPaidOrder(order);
+      // createPayment-ზე stock უკვე უნდა იყოს დაკავებული.
+      // fallback-ს ვტოვებთ იმ შემთხვევისთვის, თუ ძველი order ან manual flow მოვა.
+      if (!order.stockReserved) {
+        await this.reserveStockForOrder(order);
+      }
+      this.clearStockReservation(order);
       order.status = OrderStatus.Paid;
       await order.save();
 
@@ -1079,7 +1265,17 @@ export class OrdersService {
       if (oldStatus === status) return order;
 
       if (oldStatus !== OrderStatus.Paid && status === OrderStatus.Paid) {
-        await this.decrementStockForPaidOrder(order);
+        if (!order.stockReserved) {
+          await this.reserveStockForOrder(order);
+        }
+        this.clearStockReservation(order);
+      } else if (
+        oldStatus === OrderStatus.Pending &&
+        order.stockReserved &&
+        status !== OrderStatus.Pending
+      ) {
+        await this.releaseReservedStock(order);
+        this.clearStockReservation(order);
       }
 
       order.status = status;
@@ -1112,5 +1308,53 @@ export class OrdersService {
       console.log(error);
       throw new BadRequestException(error);
     }
+  }
+
+  async releaseExpiredReservations(
+    minutes?: number,
+  ): Promise<{ scanned: number; released: number; ttlMinutes: number }> {
+    console.log(minutes, 'minutes+++++++++++++++++');
+    const ttlMinutes =
+      typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0
+        ? minutes
+        : this.getOrderReservationTtlMinutes();
+    const now = new Date();
+    const fallbackThreshold = new Date(now.getTime() - ttlMinutes * 60 * 1000);
+
+    const orders = await this.orderModel
+      .find({
+        status: OrderStatus.Pending,
+        stockReserved: true,
+        $or: [
+          { stockReservationExpiresAt: { $lte: now } },
+          {
+            stockReservationExpiresAt: { $exists: false },
+            stockReservedAt: { $lte: fallbackThreshold },
+          },
+        ],
+      })
+      .exec();
+
+    let released = 0;
+
+    for (const order of orders) {
+      await this.releaseReservedStock(order);
+      this.clearStockReservation(order);
+      order.status = OrderStatus.Cancelled;
+      await order.save();
+      released += 1;
+    }
+
+    if (released > 0) {
+      void this.frontRevalidate.revalidateTags(
+        FRONT_PRODUCTS_TAGS as unknown as string[],
+      );
+    }
+
+    return {
+      scanned: orders.length,
+      released,
+      ttlMinutes,
+    };
   }
 }
