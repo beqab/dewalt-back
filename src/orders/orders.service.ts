@@ -722,7 +722,7 @@ export class OrdersService {
       order_id: orderId,
       // response_url: `${process.env.FRONT_URL}ka/payment-status?orderId=${orderId}`,
 
-      response_url: `${process.env.API_URL}orders/return?locale=${resolvedLocale}`,
+      response_url: `${process.env.FRONT_URL}orders/return?locale=${resolvedLocale}`,
       server_callback_url: `${process.env.API_URL}orders/callback`,
     };
     const secret_key = process.env.FLITT_SECRET_KEY;
