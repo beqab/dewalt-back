@@ -31,10 +31,12 @@ export class EmailService {
       ka: {
         tbilisi: 'თბილისი',
         region: 'რეგიონი',
+        officePickup: 'გატანა ოფისიდან',
       },
       en: {
         tbilisi: 'Tbilisi',
         region: 'Region',
+        officePickup: 'Office pickup',
       },
     };
     return map[locale][deliveryType] ?? deliveryType;

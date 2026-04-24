@@ -598,6 +598,8 @@ export class OrdersService {
         : undefined;
       deliveryPrice =
         typeof freeOver === 'number' && subtotal >= freeOver ? 0 : fee;
+    } else if (deliveryType === DeliveryType.OfficePickup) {
+      deliveryPrice = 0;
     }
     const total = Math.round((subtotal + deliveryPrice) * 100) / 100;
 

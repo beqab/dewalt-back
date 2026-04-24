@@ -15,6 +15,7 @@ export enum OrderStatus {
 export enum DeliveryType {
   Tbilisi = 'tbilisi',
   Region = 'region',
+  OfficePickup = 'officePickup',
 }
 
 export interface LocalizedText {
