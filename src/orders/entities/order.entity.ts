@@ -158,6 +158,18 @@ export class Order {
 
   @Prop({ type: Date, required: false })
   flittCallbackAt?: Date;
+
+  @Prop({ type: String, required: false })
+  tbcInstalmentSessionId?: string;
+
+  @Prop({ type: String, required: false })
+  tbcInstalmentRedirectUrl?: string;
+
+  @Prop({ type: String, required: false })
+  tbcInstalmentStatus?: string;
+
+  @Prop({ type: Date, required: false })
+  tbcInstalmentCreatedAt?: Date;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

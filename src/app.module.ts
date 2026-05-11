@@ -23,6 +23,7 @@ import { SettingsModule } from './settings/settings.module';
 import { TermsModule } from './terms/terms.module';
 import { BrandContentModule } from './brand-content/brand-content.module';
 import { ServiceCenterModule } from './service-center/service-center.module';
+// import { TbcInstalmentModule } from './tbcInstalment/tbc-instalment.module';
 
 @Module({
   imports: [
@@ -109,6 +110,7 @@ import { ServiceCenterModule } from './service-center/service-center.module';
     TermsModule,
     BrandContentModule,
     ServiceCenterModule,
+    // TbcInstalmentModule,
   ],
   controllers: [AppController],
   providers: [AppService],
