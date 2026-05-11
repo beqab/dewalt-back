@@ -561,7 +561,20 @@ export class OrdersService {
         );
       }
 
-      const unitPrice = Math.round(product.price * 100) / 100;
+      const productPrice = Number(product.price);
+      if (!Number.isFinite(productPrice) || productPrice <= 0) {
+        throw new BadRequestException(
+          this.buildInsufficientStockMessage({
+            name: this.getLocalizedProductName(
+              (product.name as LocalizedText | undefined) ?? undefined,
+            ),
+            requestedQuantity,
+            availableQuantity: 0,
+          }),
+        );
+      }
+
+      const unitPrice = Math.round(productPrice * 100) / 100;
       const lineTotal = Math.round(unitPrice * item.quantity * 100) / 100;
       return {
         productId: new Types.ObjectId(item.productId),
