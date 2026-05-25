@@ -159,6 +159,22 @@ export class OrdersController {
     });
   }
 
+  @Get('admin/release-expired-reservations')
+  @HttpCode(HttpStatus.OK)
+  // @UseGuards(CronAuthGuard)
+  @ApiOperation({
+    summary:
+      'Release expired stock reservations for pending orders. Protected by X-Cron-Secret.',
+  })
+  @ApiQuery({ name: 'minutes', required: false, type: Number })
+  releaseExpiredReservations(
+    @Query('minutes') minutes?: number,
+  ): Promise<{ scanned: number; released: number; ttlMinutes: number }> {
+    return this.ordersService.releaseExpiredReservations(
+      minutes ? Number(minutes) : undefined,
+    );
+  }
+
   @Get('admin/:id')
   @UseGuards(AdminAuthGuard)
   @ApiBearerAuth()
@@ -211,21 +227,5 @@ export class OrdersController {
   @ApiBearerAuth()
   updateStatus(@Body() updateOrderDto: UpdateOrderDto): Promise<Order> {
     return this.ordersService.updateStatus(updateOrderDto);
-  }
-
-  @Get('admin/release-expired-reservations')
-  @HttpCode(HttpStatus.OK)
-  // @UseGuards(CronAuthGuard)
-  @ApiOperation({
-    summary:
-      'Release expired stock reservations for pending orders. Protected by X-Cron-Secret.',
-  })
-  @ApiQuery({ name: 'minutes', required: false, type: Number })
-  releaseExpiredReservations(
-    @Query('minutes') minutes?: number,
-  ): Promise<{ scanned: number; released: number; ttlMinutes: number }> {
-    return this.ordersService.releaseExpiredReservations(
-      minutes ? Number(minutes) : undefined,
-    );
   }
 }
