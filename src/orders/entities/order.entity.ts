@@ -18,6 +18,14 @@ export enum DeliveryType {
   OfficePickup = 'officePickup',
 }
 
+export enum TbcInstalmentStatus {
+  Initiated = 'initiated',
+  Confirmed = 'confirmed',
+  Cancelled = 'cancelled',
+  Expired = 'expired',
+  Failed = 'failed',
+}
+
 export interface LocalizedText {
   ka: string;
   en: string;
@@ -165,11 +173,24 @@ export class Order {
   @Prop({ type: String, required: false })
   tbcInstalmentRedirectUrl?: string;
 
-  @Prop({ type: String, required: false })
-  tbcInstalmentStatus?: string;
+  @Prop({
+    type: String,
+    enum: Object.values(TbcInstalmentStatus),
+    required: false,
+  })
+  tbcInstalmentStatus?: TbcInstalmentStatus;
 
   @Prop({ type: Date, required: false })
   tbcInstalmentCreatedAt?: Date;
+
+  @Prop({ type: Date, required: false })
+  tbcInstalmentConfirmedAt?: Date;
+
+  @Prop({ type: Date, required: false })
+  tbcInstalmentCancelledAt?: Date;
+
+  @Prop({ type: String, required: false })
+  tbcInstalmentLastError?: string;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
@@ -177,5 +198,9 @@ OrderSchema.index({
   status: 1,
   stockReserved: 1,
   stockReservationExpiresAt: 1,
+});
+OrderSchema.index({
+  tbcInstalmentStatus: 1,
+  tbcInstalmentCreatedAt: 1,
 });
 export type OrderDocument = Order & Document;

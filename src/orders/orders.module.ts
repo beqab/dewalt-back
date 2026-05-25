@@ -24,5 +24,6 @@ import { FinaModule } from '../fina/fina.module';
   ],
   controllers: [OrdersController],
   providers: [OrdersService],
+  exports: [OrdersService],
 })
 export class OrdersModule {}

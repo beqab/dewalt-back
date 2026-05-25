@@ -44,7 +44,9 @@ function normalizeBrandBlock(value: unknown) {
   }
 
   return Object.fromEntries(
-    Object.entries(normalized).filter(([, fieldValue]) => fieldValue !== undefined),
+    Object.entries(normalized).filter(
+      ([, fieldValue]) => fieldValue !== undefined,
+    ),
   );
 }
 
@@ -95,9 +97,7 @@ export class BrandContentService {
       )
       .exec();
 
-    void this.frontRevalidate.revalidateTags(
-      FRONT_BRAND_CONTENT_TAGS as string[],
-    );
+    void this.frontRevalidate.revalidateTags(FRONT_BRAND_CONTENT_TAGS);
 
     return brandContent;
   }

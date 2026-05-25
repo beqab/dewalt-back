@@ -1,18 +1,24 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/mongoose';
 import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   LocalizedText,
   Order,
   OrderDocument,
   OrderStatus,
+  TbcInstalmentStatus,
 } from '../orders/entities/order.entity';
+import { OrdersService } from '../orders/orders.service';
+import { EmailService } from '../email/email.service';
+import { FrontRevalidateService } from '../revalidate/front-revalidate.service';
+import { FRONT_PRODUCTS_TAGS } from '../revalidate/front-cache-tags';
 import { CreateTbcInstalmentDto } from './dto/create-tbc-instalment.dto';
 
 export type TbcInstalmentOrderContext = {
@@ -23,6 +29,15 @@ export type TbcInstalmentOrderContext = {
   sessionId: string;
   redirectUrl: string;
   status: string;
+};
+
+export type TbcSweepResult = {
+  scanned: number;
+  confirmed: number;
+  cancelled: number;
+  expired: number;
+  failed: number;
+  skipped: number;
 };
 
 type TbcTokenResponse = {
@@ -52,11 +67,30 @@ type TbcInitiateApplicationResponse = {
   [key: string]: unknown;
 };
 
+type TbcErrorPayload = {
+  code?: string;
+  userMessage?: string;
+  systemMessage?: string;
+  info?: string;
+  [key: string]: unknown;
+};
+
+type TbcRawResponse<T> = {
+  status: number;
+  data: T;
+  headers: Record<string, unknown>;
+};
+
 @Injectable()
 export class TbcInstalmentService {
+  private readonly logger = new Logger(TbcInstalmentService.name);
+
   constructor(
     @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
     private readonly configService: ConfigService,
+    private readonly ordersService: OrdersService,
+    private readonly emailService: EmailService,
+    private readonly frontRevalidate: FrontRevalidateService,
   ) {}
 
   private cachedToken: { value: string; expiresAtMs: number } | null = null;
@@ -111,6 +145,7 @@ export class TbcInstalmentService {
 
   private get scope(): string {
     return (
+      this.configService.get<string>('TBC_INSTALLMENT_OAUTH_SCOPE') ||
       this.configService.get<string>('TBC_INSTALLMENT_SCOPE') ||
       'online_installments'
     );
@@ -226,25 +261,40 @@ export class TbcInstalmentService {
 
   private async buildAuthHeaders(): Promise<Record<string, string>> {
     const token = await this.getAccessToken();
-    console.log(token, 'token+++++++++++++++++');
     return {
       Authorization: `Bearer ${token}`,
     };
   }
 
-  private async tbcRequest<T>(
-    path: string,
-    config: AxiosRequestConfig = {},
-  ): Promise<T> {
-    const { data } = await this.tbcRequestWithHeaders<T>(path, config);
-
-    return data;
-  }
-
+  /**
+   * Request that throws BadRequestException on any non-2xx response.
+   * Use this for Initiate where any failure aborts the flow.
+   */
   private async tbcRequestWithHeaders<T>(
     path: string,
     config: AxiosRequestConfig = {},
   ): Promise<{ data: T; headers: Record<string, unknown> }> {
+    const raw = await this.tbcRequestRaw<T>(path, config);
+
+    if (raw.status < 200 || raw.status >= 300) {
+      throw new BadRequestException({
+        message: 'TBC installment API request failed',
+        statusCode: raw.status,
+        details: raw.data,
+      });
+    }
+
+    return { data: raw.data, headers: raw.headers };
+  }
+
+  /**
+   * Raw request that returns the response untouched so callers can branch
+   * on TBC's specific error codes (401 expired, 404 merchant, etc).
+   */
+  private async tbcRequestRaw<T>(
+    path: string,
+    config: AxiosRequestConfig = {},
+  ): Promise<TbcRawResponse<T>> {
     const authHeaders = await this.buildAuthHeaders();
 
     let response: AxiosResponse<T>;
@@ -260,20 +310,11 @@ export class TbcInstalmentService {
         validateStatus: () => true,
       });
     } catch (error) {
-      console.log(error, 'error+++ from tbcRequestWithHeaders');
       this.throwTbcTransportError(error, 'TBC installment API request failed');
     }
 
-    if (response.status < 200 || response.status >= 300) {
-      console.log(response.data, 'response+++ from tbcRequestWithHeaders');
-      throw new BadRequestException({
-        message: 'TBC installment API request failed',
-        statusCode: response.status,
-        details: response.data,
-      });
-    }
-
     return {
+      status: response.status,
       data: response.data,
       headers: response.headers as Record<string, unknown>,
     };
@@ -303,9 +344,11 @@ export class TbcInstalmentService {
 
   private buildProducts(order: OrderDocument): TbcInstalmentProduct[] {
     const locale = order.locale ?? 'ka';
+    // TBC expects line totals: when quantity > 1, price must be summed.
+    // sum(products[i].price) must equal priceTotal — enforced by TBC API.
     const products = order.items.map((item) => ({
       name: this.getLocalizedName(item.name, locale),
-      price: this.roundMoney(item.unitPrice),
+      price: this.roundMoney(item.unitPrice * item.quantity),
       quantity: item.quantity,
     }));
 
@@ -322,11 +365,32 @@ export class TbcInstalmentService {
 
   private calculatePriceTotal(products: TbcInstalmentProduct[]): number {
     return this.roundMoney(
-      products.reduce(
-        (sum, product) => sum + product.price * product.quantity,
-        0,
-      ),
+      products.reduce((sum, product) => sum + product.price, 0),
     );
+  }
+
+  private buildOrderContext(
+    order: OrderDocument,
+    priceTotal: number,
+  ): TbcInstalmentOrderContext {
+    return {
+      orderId: (order._id as Types.ObjectId).toHexString(),
+      orderUuid: order.uuid,
+      amount: priceTotal,
+      currency: 'GEL',
+      sessionId: order.tbcInstalmentSessionId ?? '',
+      redirectUrl: order.tbcInstalmentRedirectUrl ?? '',
+      status: order.tbcInstalmentStatus ?? TbcInstalmentStatus.Initiated,
+    };
+  }
+
+  private getTbcErrorMessage(payload: unknown): string {
+    if (payload && typeof payload === 'object') {
+      const candidate = payload as TbcErrorPayload;
+      const msg = candidate.userMessage || candidate.systemMessage;
+      if (typeof msg === 'string' && msg.length > 0) return msg;
+    }
+    return '';
   }
 
   async createForOrder(
@@ -346,6 +410,17 @@ export class TbcInstalmentService {
 
     const products = this.buildProducts(order);
     const priceTotal = this.calculatePriceTotal(products);
+
+    // Idempotency: if we already have an active TBC session for this order,
+    // return the existing context instead of opening a second one on TBC's side.
+    if (
+      order.tbcInstalmentStatus === TbcInstalmentStatus.Initiated &&
+      order.tbcInstalmentSessionId &&
+      order.tbcInstalmentRedirectUrl
+    ) {
+      return this.buildOrderContext(order, priceTotal);
+    }
+
     const invoiceId = order.uuid || dto.orderId;
     const payload: TbcInitiateApplicationRequest = {
       merchantKey: this.merchantKey,
@@ -355,47 +430,352 @@ export class TbcInstalmentService {
       products,
     };
 
-    const { data, headers } =
-      await this.tbcRequestWithHeaders<TbcInitiateApplicationResponse>(
-        '/v1/online-installments/applications',
-        {
-          method: 'POST',
-          data: payload,
-          headers: {
-            'Content-Type': 'application/json',
+    // Reserve stock atomically before opening the TBC session, mirroring the
+    // Flitt payment flow. If TBC rejects or we crash mid-flight, the cron
+    // sweep / order-cancellation path releases the reservation.
+    const expiresAt = this.ordersService.getReservationExpiresAt();
+    let reservedNow = false;
+
+    if (!order.stockReserved) {
+      this.ordersService.markStockReservation(order, expiresAt);
+      try {
+        await this.ordersService.reserveStockForOrder(order);
+        reservedNow = true;
+      } catch (error) {
+        this.ordersService.clearStockReservation(order);
+        await order.save();
+        throw error;
+      }
+    }
+
+    try {
+      const { data, headers } =
+        await this.tbcRequestWithHeaders<TbcInitiateApplicationResponse>(
+          '/v1/online-installments/applications',
+          {
+            method: 'POST',
+            data: payload,
+            headers: {
+              'Content-Type': 'application/json',
+            },
           },
-        },
-      );
+        );
 
-    const sessionId = data.sessionId;
-    const redirectUrl = this.getHeader(headers, 'location');
+      const sessionId = data.sessionId;
+      const redirectUrl = this.getHeader(headers, 'location');
 
-    if (!sessionId) {
-      throw new BadRequestException(
-        'TBC instalment application response is missing sessionId',
-      );
+      if (!sessionId) {
+        throw new BadRequestException(
+          'TBC instalment application response is missing sessionId',
+        );
+      }
+
+      if (!redirectUrl) {
+        throw new BadRequestException(
+          'TBC instalment application response is missing redirect URL',
+        );
+      }
+
+      order.tbcInstalmentSessionId = sessionId;
+      order.tbcInstalmentRedirectUrl = redirectUrl;
+      order.tbcInstalmentStatus = TbcInstalmentStatus.Initiated;
+      order.tbcInstalmentCreatedAt = new Date();
+      order.tbcInstalmentLastError = undefined;
+      await order.save();
+
+      return {
+        orderId: dto.orderId,
+        orderUuid: order.uuid,
+        amount: priceTotal,
+        currency: 'GEL',
+        sessionId,
+        redirectUrl,
+        status: TbcInstalmentStatus.Initiated,
+      };
+    } catch (error) {
+      if (reservedNow) {
+        await this.ordersService.releaseReservedStock(order);
+        this.ordersService.clearStockReservation(order);
+        await order.save();
+      }
+      throw error;
     }
-
-    if (!redirectUrl) {
-      throw new BadRequestException(
-        'TBC instalment application response is missing redirect URL',
-      );
-    }
-
-    order.tbcInstalmentSessionId = sessionId;
-    order.tbcInstalmentRedirectUrl = redirectUrl;
-    order.tbcInstalmentStatus = 'initiated';
-    order.tbcInstalmentCreatedAt = new Date();
-    await order.save();
-
-    return {
-      orderId: dto.orderId,
-      orderUuid: order.uuid,
-      amount: priceTotal,
-      currency: 'GEL',
-      sessionId,
-      redirectUrl,
-      status: 'initiated',
-    };
   }
+
+  /**
+   * Confirm a single TBC instalment session. Idempotent enough to be safe
+   * for cron retries — branches on TBC's error codes.
+   */
+  // async confirmForOrder(order: OrderDocument): Promise<TbcInstalmentStatus> {
+  //   if (!order.tbcInstalmentSessionId) {
+  //     throw new BadRequestException('Order has no TBC instalment session');
+  //   }
+
+  //   const raw = await this.tbcRequestRaw<unknown>(
+  //     `/v1/online-installments/applications/${order.tbcInstalmentSessionId}/confirm`,
+  //     {
+  //       method: 'POST',
+  //       data: { merchantKey: this.merchantKey },
+  //       headers: { 'Content-Type': 'application/json' },
+  //     },
+  //   );
+
+  //   if (raw.status >= 200 && raw.status < 300) {
+  //     order.tbcInstalmentStatus = TbcInstalmentStatus.Confirmed;
+  //     order.tbcInstalmentConfirmedAt = new Date();
+  //     order.tbcInstalmentLastError = undefined;
+  //     if (order.stockReserved) {
+  //       this.ordersService.clearStockReservation(order);
+  //     }
+  //     const wasAlreadyPaid = order.status === OrderStatus.Paid;
+  //     order.status = OrderStatus.Paid;
+  //     await order.save();
+
+  //     if (!wasAlreadyPaid) {
+  //       await this.fireOrderPaidSideEffects(order);
+  //     }
+
+  //     return TbcInstalmentStatus.Confirmed;
+  //   }
+
+  //   const errorMessage = this.getTbcErrorMessage(raw.data);
+
+  //   // 401 with "Expired confirmation date" — past the same-day deadline.
+  //   if (raw.status === 401 && /expired/i.test(errorMessage)) {
+  //     await this.markInstalmentExpired(order, errorMessage);
+  //     return TbcInstalmentStatus.Expired;
+  //   }
+
+  //   // 401 "Active installment with sessionId not exists" — TBC no longer
+  //   // has an active session. Treat as expired so we release the reservation.
+  //   if (raw.status === 401) {
+  //     await this.markInstalmentExpired(order, errorMessage);
+  //     return TbcInstalmentStatus.Expired;
+  //   }
+
+  //   // 404 — merchant config issue; flag and stop retrying via Failed.
+  //   if (raw.status === 404) {
+  //     await this.markInstalmentFailed(
+  //       order,
+  //       errorMessage || 'Merchant not found',
+  //     );
+  //     return TbcInstalmentStatus.Failed;
+  //   }
+
+  //   // 400 / other — record the error but leave Initiated so a later sweep
+  //   // can retry. If retries keep failing, an operator can flip it manually.
+  //   order.tbcInstalmentLastError = `confirm ${raw.status}: ${errorMessage || 'unknown'}`;
+  //   await order.save();
+  //   throw new BadRequestException({
+  //     message: 'TBC installment confirm failed',
+  //     statusCode: raw.status,
+  //     details: raw.data,
+  //   });
+  // }
+
+  /**
+   * Cancel a single TBC instalment session. Safe to call on an already-cancelled
+   * session — TBC's "session not exists" 401 is treated as success.
+   */
+  async cancelForOrder(order: OrderDocument): Promise<TbcInstalmentStatus> {
+    if (!order.tbcInstalmentSessionId) {
+      throw new BadRequestException('Order has no TBC instalment session');
+    }
+
+    const raw = await this.tbcRequestRaw<unknown>(
+      `/v1/online-installments/applications/${order.tbcInstalmentSessionId}/cancel`,
+      {
+        method: 'POST',
+        data: { merchantKey: this.merchantKey },
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+
+    const errorMessage = this.getTbcErrorMessage(raw.data);
+    const sessionGone = raw.status === 401 && /not exists/i.test(errorMessage);
+
+    if ((raw.status >= 200 && raw.status < 300) || sessionGone) {
+      await this.markInstalmentCancelled(order, errorMessage);
+      return TbcInstalmentStatus.Cancelled;
+    }
+
+    if (raw.status === 404) {
+      await this.markInstalmentFailed(
+        order,
+        errorMessage || 'Merchant not found',
+      );
+      return TbcInstalmentStatus.Failed;
+    }
+
+    order.tbcInstalmentLastError = `cancel ${raw.status}: ${errorMessage || 'unknown'}`;
+    await order.save();
+    throw new BadRequestException({
+      message: 'TBC installment cancel failed',
+      statusCode: raw.status,
+      details: raw.data,
+    });
+  }
+
+  private async markInstalmentExpired(
+    order: OrderDocument,
+    errorMessage: string,
+  ): Promise<void> {
+    if (order.stockReserved) {
+      await this.ordersService.releaseReservedStock(order);
+      this.ordersService.clearStockReservation(order);
+    }
+    order.tbcInstalmentStatus = TbcInstalmentStatus.Expired;
+    order.tbcInstalmentLastError = errorMessage || undefined;
+    if (order.status === OrderStatus.Pending) {
+      order.status = OrderStatus.Cancelled;
+    }
+    await order.save();
+    void this.frontRevalidate.revalidateTags(
+      FRONT_PRODUCTS_TAGS as unknown as string[],
+    );
+  }
+
+  private async markInstalmentCancelled(
+    order: OrderDocument,
+    errorMessage: string,
+  ): Promise<void> {
+    if (order.stockReserved) {
+      await this.ordersService.releaseReservedStock(order);
+      this.ordersService.clearStockReservation(order);
+    }
+    order.tbcInstalmentStatus = TbcInstalmentStatus.Cancelled;
+    order.tbcInstalmentCancelledAt = new Date();
+    order.tbcInstalmentLastError = errorMessage || undefined;
+    if (order.status === OrderStatus.Pending) {
+      order.status = OrderStatus.Cancelled;
+    }
+    await order.save();
+    void this.frontRevalidate.revalidateTags(
+      FRONT_PRODUCTS_TAGS as unknown as string[],
+    );
+  }
+
+  private async markInstalmentFailed(
+    order: OrderDocument,
+    errorMessage: string,
+  ): Promise<void> {
+    order.tbcInstalmentStatus = TbcInstalmentStatus.Failed;
+    order.tbcInstalmentLastError = errorMessage || undefined;
+    await order.save();
+  }
+
+  private async fireOrderPaidSideEffects(order: OrderDocument): Promise<void> {
+    void this.ordersService
+      .syncFinaDocProductOut(order._id as Types.ObjectId)
+      .catch(() => undefined);
+
+    let to: string | null = order.email;
+    if (!to) {
+      to = await this.ordersService.resolveRecipientEmail(order);
+    }
+    if (to) {
+      void this.emailService
+        .sendOrderPaidEmail({
+          to,
+          locale: order.locale ?? 'ka',
+          // @ts-expect-error: order type does not match OrderWithId
+          order,
+        })
+        .catch(() => undefined);
+    }
+
+    void this.frontRevalidate.revalidateTags(
+      FRONT_PRODUCTS_TAGS as unknown as string[],
+    );
+  }
+
+  // private startOfTodayUtc(): Date {
+  //   const now = new Date();
+  //   return new Date(
+  //     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+  //   );
+  // }
+
+  /**
+   * Sweep all instalments initiated today and call /confirm on each.
+   * Intended to be triggered by cronjob.org every ~10 minutes.
+   * Per-order errors are swallowed so one failure doesn't block the batch.
+   */
+  // async sweepConfirmPending(): Promise<TbcSweepResult> {
+  //   const startOfToday = this.startOfTodayUtc();
+  //   const orders = await this.orderModel
+  //     .find({
+  //       tbcInstalmentStatus: TbcInstalmentStatus.Initiated,
+  //       tbcInstalmentCreatedAt: { $gte: startOfToday },
+  //     })
+  //     .exec();
+
+  //   const result: TbcSweepResult = {
+  //     scanned: orders.length,
+  //     confirmed: 0,
+  //     cancelled: 0,
+  //     expired: 0,
+  //     failed: 0,
+  //     skipped: 0,
+  //   };
+
+  //   for (const order of orders) {
+  //     try {
+  //       const outcome = await this.confirmForOrder(order);
+  //       if (outcome === TbcInstalmentStatus.Confirmed) result.confirmed += 1;
+  //       else if (outcome === TbcInstalmentStatus.Expired) result.expired += 1;
+  //       else if (outcome === TbcInstalmentStatus.Failed) result.failed += 1;
+  //       else result.skipped += 1;
+  //     } catch (error) {
+  //       result.skipped += 1;
+  //       const message = error instanceof Error ? error.message : String(error);
+  //       this.logger.warn(
+  //         `confirm-pending: order ${(order._id as Types.ObjectId).toHexString()} ${message}`,
+  //       );
+  //     }
+  //   }
+
+  //   return result;
+  // }
+
+  /**
+   * Sweep instalments that were initiated before today (past TBC's same-day
+   * confirmation deadline) and call /cancel on each.
+   * Intended to run once per day shortly after midnight.
+   */
+  // async sweepCancelExpired(): Promise<TbcSweepResult> {
+  //   const startOfToday = this.startOfTodayUtc();
+  //   const orders = await this.orderModel
+  //     .find({
+  //       tbcInstalmentStatus: TbcInstalmentStatus.Initiated,
+  //       tbcInstalmentCreatedAt: { $lt: startOfToday },
+  //     })
+  //     .exec();
+
+  //   const result: TbcSweepResult = {
+  //     scanned: orders.length,
+  //     confirmed: 0,
+  //     cancelled: 0,
+  //     expired: 0,
+  //     failed: 0,
+  //     skipped: 0,
+  //   };
+
+  //   for (const order of orders) {
+  //     try {
+  //       const outcome = await this.cancelForOrder(order);
+  //       if (outcome === TbcInstalmentStatus.Cancelled) result.cancelled += 1;
+  //       else if (outcome === TbcInstalmentStatus.Failed) result.failed += 1;
+  //       else result.skipped += 1;
+  //     } catch (error) {
+  //       result.skipped += 1;
+  //       const message = error instanceof Error ? error.message : String(error);
+  //       this.logger.warn(
+  //         `cancel-expired: order ${(order._id as Types.ObjectId).toHexString()} ${message}`,
+  //       );
+  //     }
+  //   }
+
+  //   return result;
+  // }
 }

@@ -122,7 +122,7 @@ export class SettingsService {
       )
       .exec();
 
-    void this.frontRevalidate.revalidateTags(FRONT_SETTINGS_TAGS as string[]);
+    void this.frontRevalidate.revalidateTags(FRONT_SETTINGS_TAGS);
 
     return settings;
   }

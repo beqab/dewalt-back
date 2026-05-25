@@ -13,6 +13,7 @@ import {
   Order,
   OrderDocument,
   OrderStatus,
+  TbcInstalmentStatus,
 } from './entities/order.entity';
 import { Product, ProductDocument } from '../products/entities/product.entity';
 import { TranslationHelperService } from '../translation/translationHelper.service';
@@ -93,8 +94,9 @@ export class OrdersService {
     private readonly frontRevalidate: FrontRevalidateService,
   ) {}
 
-  private async syncFinaDocProductOut(
+  async syncFinaDocProductOut(
     orderId: string | Types.ObjectId,
+    purpose?: string,
   ): Promise<void> {
     // Find the order by its ID and populate items.productId with finaId
     const order = await this.orderModel
@@ -146,7 +148,7 @@ export class OrdersService {
       // Build payload for finaService submission
       const payload: SaveDocProductOutDto = {
         date: new Date().toISOString(),
-        purpose: `Online order ${order.uuid}`,
+        purpose: purpose ?? `Online order ${order.uuid}`,
         amount:
           typeof order.subtotal === 'number' && Number.isFinite(order.subtotal)
             ? order.subtotal
@@ -154,6 +156,7 @@ export class OrdersService {
         is_vat: true,
         make_entry: true,
         products,
+        pay_type: order.tbcInstalmentStatus ? 3 : 1,
       };
 
       console.log(payload, 'payload+++++++++++++++++');
@@ -173,9 +176,7 @@ export class OrdersService {
     }
   }
 
-  private async resolveRecipientEmail(
-    order: OrderDocument,
-  ): Promise<string | null> {
+  async resolveRecipientEmail(order: OrderDocument): Promise<string | null> {
     if (order.email) return order.email;
 
     const userId =
@@ -229,9 +230,7 @@ export class OrdersService {
     return Number.isFinite(rawValue) && rawValue > 0 ? rawValue : 15;
   }
 
-  private getReservationExpiresAt(
-    minutes = this.getOrderReservationTtlMinutes(),
-  ) {
+  getReservationExpiresAt(minutes = this.getOrderReservationTtlMinutes()) {
     return new Date(Date.now() + minutes * 60 * 1000);
   }
 
@@ -253,7 +252,7 @@ export class OrdersService {
     return requiredByProduct;
   }
 
-  private markStockReservation(
+  markStockReservation(
     order: OrderDocument,
     expiresAt = this.getReservationExpiresAt(),
   ): void {
@@ -262,7 +261,7 @@ export class OrdersService {
     order.stockReservationExpiresAt = expiresAt;
   }
 
-  private clearStockReservation(order: OrderDocument): void {
+  clearStockReservation(order: OrderDocument): void {
     order.stockReserved = false;
     order.stockReservedAt = undefined;
     order.stockReservationExpiresAt = undefined;
@@ -296,7 +295,7 @@ export class OrdersService {
     return `პროდუქტი ${name} მოთხოვნილი რაოდენობით არ არის მარაგში. მოთხოვნილი: ${requestedQuantity}, ხელმისაწვდომი: ${availableQuantity} . გთხოვთ განაახლოთ კალათა და სცადოთ თავიდან.`;
   }
 
-  private async reserveStockForOrder(order: OrderDocument): Promise<void> {
+  async reserveStockForOrder(order: OrderDocument): Promise<void> {
     const requiredByProduct = this.collectRequiredProductQuantities(order);
 
     if (requiredByProduct.size === 0) return;
@@ -367,7 +366,7 @@ export class OrdersService {
     }
   }
 
-  private async releaseReservedStock(order: OrderDocument): Promise<void> {
+  async releaseReservedStock(order: OrderDocument): Promise<void> {
     const requiredByProduct = this.collectRequiredProductQuantities(order);
 
     if (requiredByProduct.size === 0) return;
@@ -1059,6 +1058,7 @@ export class OrdersService {
     id?: string;
     uuid?: string;
     email?: string;
+    paymentType?: 'regular' | 'tbcInstalment';
   }): Promise<{
     data: OrderDocument[];
     total: number;
@@ -1068,7 +1068,16 @@ export class OrdersService {
     totalPages: number;
   }> {
     try {
-      const { page = 1, limit = 10, status, userId, id, uuid, email } = query;
+      const {
+        page = 1,
+        limit = 10,
+        status,
+        userId,
+        id,
+        uuid,
+        email,
+        paymentType,
+      } = query;
 
       const idRaw = id ? String(id).trim() : '';
       const uuidRaw = uuid ? String(uuid).trim() : '';
@@ -1100,11 +1109,15 @@ export class OrdersService {
       if (status) {
         filterParts.push({ status });
       } else if (identifierFilters.length === 0) {
-        filterParts.push({
-          status: {
-            $nin: [OrderStatus.Pending, OrderStatus.Failed],
-          },
-        });
+        if (paymentType === 'tbcInstalment') {
+          filterParts.push({ status: { $nin: [OrderStatus.Failed] } });
+        } else {
+          filterParts.push({
+            status: {
+              $nin: [OrderStatus.Pending, OrderStatus.Failed],
+            },
+          });
+        }
       }
 
       if (userId) {
@@ -1133,6 +1146,12 @@ export class OrdersService {
             ...(ids.length > 0 ? [{ userId: { $in: ids } }] : []),
           ],
         });
+      }
+
+      if (paymentType === 'tbcInstalment') {
+        filterParts.push({ tbcInstalmentStatus: { $exists: true } });
+      } else if (paymentType === 'regular') {
+        filterParts.push({ tbcInstalmentStatus: { $exists: false } });
       }
 
       const filter =
@@ -1280,11 +1299,17 @@ export class OrdersService {
       const oldStatus = order.status;
       if (oldStatus === status) return order;
 
+      const isTbcInstalment = Boolean(order.tbcInstalmentSessionId);
+
       if (oldStatus !== OrderStatus.Paid && status === OrderStatus.Paid) {
         if (!order.stockReserved) {
           await this.reserveStockForOrder(order);
         }
         this.clearStockReservation(order);
+        if (isTbcInstalment) {
+          order.tbcInstalmentStatus = TbcInstalmentStatus.Confirmed;
+          order.tbcInstalmentConfirmedAt = new Date();
+        }
       } else if (
         oldStatus === OrderStatus.Pending &&
         order.stockReserved &&
@@ -1298,8 +1323,15 @@ export class OrdersService {
       const saved = await order.save();
 
       if (oldStatus !== OrderStatus.Paid && status === OrderStatus.Paid) {
-        void this.syncFinaDocProductOut(saved._id as Types.ObjectId).catch(
-          () => undefined,
+        const finaPurpose = isTbcInstalment
+          ? `TBC განვადება - ონლაინ გაყიდვა ${saved.uuid}`
+          : undefined;
+        void this.syncFinaDocProductOut(
+          saved._id as Types.ObjectId,
+          finaPurpose,
+        ).catch(() => undefined);
+        void this.frontRevalidate.revalidateTags(
+          FRONT_PRODUCTS_TAGS as unknown as string[],
         );
       }
 

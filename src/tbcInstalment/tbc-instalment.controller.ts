@@ -23,4 +23,15 @@ export class TbcInstalmentController {
   ): Promise<TbcInstalmentOrderContext> {
     return this.tbcInstalmentService.createForOrder(dto);
   }
+
+  // @Post('cron/cancel-expired')
+  // @HttpCode(HttpStatus.OK)
+  // // @UseGuards(CronAuthGuard)
+  // @ApiOperation({
+  //   summary:
+  //     'Cron: cancel TBC instalments past the same-day confirmation deadline. Protected by X-Cron-Secret.',
+  // })
+  // sweepCancelExpired(): Promise<TbcSweepResult> {
+  //   return this.tbcInstalmentService.sweepCancelExpired();
+  // }
 }

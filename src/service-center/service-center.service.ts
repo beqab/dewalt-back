@@ -82,9 +82,7 @@ export class ServiceCenterService {
       )
       .exec();
 
-    void this.frontRevalidate.revalidateTags(
-      FRONT_SERVICE_CENTER_TAGS as string[],
-    );
+    void this.frontRevalidate.revalidateTags(FRONT_SERVICE_CENTER_TAGS);
 
     return doc;
   }

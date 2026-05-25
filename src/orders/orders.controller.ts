@@ -31,6 +31,7 @@ import { UserAuthGuard } from '../guards/user.guard';
 import { CurrentUser } from '../decorators/getCurrentUser';
 import type { CurrentUserType } from '../decorators/getCurrentUser';
 import { AdminAuthGuard } from '../guards/admin.guard';
+import { CronAuthGuard } from '../guards/cron.guard';
 import { CurrentUserInterceptor } from '../interceptors/current-user.interceptor';
 
 @ApiTags('orders')
@@ -130,6 +131,11 @@ export class OrdersController {
   @ApiQuery({ name: 'finalId', required: false, type: String })
   @ApiQuery({ name: 'email', required: false, type: String })
   @ApiQuery({ name: 'userEmail', required: false, type: String })
+  @ApiQuery({
+    name: 'paymentType',
+    required: false,
+    enum: ['regular', 'tbcInstalment'],
+  })
   findAllAdmin(
     @Query('page') page?: number,
     @Query('limit') limit?: number,
@@ -140,6 +146,7 @@ export class OrdersController {
     @Query('finalId') finalId?: string,
     @Query('email') email?: string,
     @Query('userEmail') userEmail?: string,
+    @Query('paymentType') paymentType?: 'regular' | 'tbcInstalment',
   ) {
     return this.ordersService.findAll({
       page: page ? Number(page) : undefined,
@@ -148,6 +155,7 @@ export class OrdersController {
       id: id ? String(id) : undefined,
       uuid: uuid || finaId || finalId,
       email: (userEmail || email) ?? undefined,
+      paymentType,
     });
   }
 
@@ -205,12 +213,12 @@ export class OrdersController {
     return this.ordersService.updateStatus(updateOrderDto);
   }
 
-  @Post('admin/release-expired-reservations')
-  // @UseGuards(AdminAuthGuard)
-  // @ApiBearerAuth()
+  @Get('admin/release-expired-reservations')
   @HttpCode(HttpStatus.OK)
+  // @UseGuards(CronAuthGuard)
   @ApiOperation({
-    summary: 'Release expired stock reservations for pending orders',
+    summary:
+      'Release expired stock reservations for pending orders. Protected by X-Cron-Secret.',
   })
   @ApiQuery({ name: 'minutes', required: false, type: Number })
   releaseExpiredReservations(

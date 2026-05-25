@@ -72,7 +72,7 @@ export class TermsService {
       )
       .exec();
 
-    void this.frontRevalidate.revalidateTags(FRONT_TERMS_TAGS as string[]);
+    void this.frontRevalidate.revalidateTags(FRONT_TERMS_TAGS);
 
     return terms;
   }
