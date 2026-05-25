@@ -198,40 +198,81 @@ export class ProductsService {
     return product;
   }
 
-  async reorderProducts(
-    productIds: string[],
-    childCategoryId: string,
-  ): Promise<void> {
+  async reorderProducts(params: {
+    productIds: string[];
+    childCategoryId?: string;
+    categoryId?: string;
+  }): Promise<void> {
+    const { productIds, childCategoryId, categoryId } = params;
+
+    if (!!childCategoryId === !!categoryId) {
+      throw new BadRequestException(
+        'Provide exactly one of childCategoryId or categoryId',
+      );
+    }
+
     try {
-      const childCategoryObjectId = new Types.ObjectId(childCategoryId);
       const productObjectIds = productIds.map((id) => new Types.ObjectId(id));
 
-      const matchingProducts = await this.productModel
-        .find({
-          _id: { $in: productObjectIds },
-          childCategoryId: childCategoryObjectId,
-        })
-        .select('_id')
-        .lean()
-        .exec();
+      if (childCategoryId) {
+        const childCategoryObjectId = new Types.ObjectId(childCategoryId);
 
-      if (matchingProducts.length !== productIds.length) {
-        throw new BadRequestException(
-          'Some products do not belong to the selected child category',
+        const matchingProducts = await this.productModel
+          .find({
+            _id: { $in: productObjectIds },
+            childCategoryId: childCategoryObjectId,
+          })
+          .select('_id')
+          .lean()
+          .exec();
+
+        if (matchingProducts.length !== productIds.length) {
+          throw new BadRequestException(
+            'Some products do not belong to the selected child category',
+          );
+        }
+
+        await this.productModel.bulkWrite(
+          productIds.map((id, index) => ({
+            updateOne: {
+              filter: {
+                _id: new Types.ObjectId(id),
+                childCategoryId: childCategoryObjectId,
+              },
+              update: { $set: { sortOrder: index } },
+            },
+          })),
+        );
+      } else {
+        const categoryObjectId = new Types.ObjectId(categoryId);
+
+        const matchingProducts = await this.productModel
+          .find({
+            _id: { $in: productObjectIds },
+            categoryId: categoryObjectId,
+          })
+          .select('_id')
+          .lean()
+          .exec();
+
+        if (matchingProducts.length !== productIds.length) {
+          throw new BadRequestException(
+            'Some products do not belong to the selected category',
+          );
+        }
+
+        await this.productModel.bulkWrite(
+          productIds.map((id, index) => ({
+            updateOne: {
+              filter: {
+                _id: new Types.ObjectId(id),
+                categoryId: categoryObjectId,
+              },
+              update: { $set: { categorySortOrder: index } },
+            },
+          })),
         );
       }
-
-      await this.productModel.bulkWrite(
-        productIds.map((id, index) => ({
-          updateOne: {
-            filter: {
-              _id: new Types.ObjectId(id),
-              childCategoryId: childCategoryObjectId,
-            },
-            update: { $set: { sortOrder: index } },
-          },
-        })),
-      );
 
       void this.frontRevalidate.revalidateTags(
         FRONT_PRODUCTS_TAGS as unknown as string[],
@@ -598,6 +639,9 @@ export class ProductsService {
 
       // Determine sort order
       let sortOrder: Record<string, 1 | -1> = { createdAt: -1 }; // Default sort
+      const hasChildCategoryFilter =
+        (filters?.childCategoryId || filters?.childCategorySlug) &&
+        !skipChildCategoryFilter;
       if (filters?.sort) {
         if (filters.sort === 'price-asc') {
           sortOrder = { price: 1 };
@@ -605,11 +649,10 @@ export class ProductsService {
           sortOrder = { price: -1 };
         }
         // If sort is empty or invalid, use default (createdAt: -1)
-      } else if (
-        (filters?.childCategoryId || filters?.childCategorySlug) &&
-        !skipChildCategoryFilter
-      ) {
+      } else if (hasChildCategoryFilter) {
         sortOrder = { sortOrder: 1, createdAt: -1 };
+      } else if (filters?.categoryId || filters?.categorySlug) {
+        sortOrder = { categorySortOrder: 1, createdAt: -1 };
       }
 
       const [data, total] = await Promise.all([

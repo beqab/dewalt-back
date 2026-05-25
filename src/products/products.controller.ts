@@ -148,16 +148,27 @@ export class ProductsController {
     const payload = reorderDto as Record<string, unknown>;
     const productIds = payload.productIds;
     const childCategoryId = payload.childCategoryId;
+    const categoryId = payload.categoryId;
+
+    const hasChildCategory = typeof childCategoryId === 'string';
+    const hasCategory = typeof categoryId === 'string';
 
     if (
       !Array.isArray(productIds) ||
+      productIds.length === 0 ||
       !productIds.every((id) => typeof id === 'string') ||
-      typeof childCategoryId !== 'string'
+      hasChildCategory === hasCategory
     ) {
-      throw new BadRequestException('Invalid reorder payload');
+      throw new BadRequestException(
+        'Invalid reorder payload: provide productIds and exactly one of childCategoryId or categoryId',
+      );
     }
 
-    return this.productsService.reorderProducts(productIds, childCategoryId);
+    return this.productsService.reorderProducts({
+      productIds,
+      childCategoryId: hasChildCategory ? childCategoryId : undefined,
+      categoryId: hasCategory ? categoryId : undefined,
+    });
   }
 
   @Get()
