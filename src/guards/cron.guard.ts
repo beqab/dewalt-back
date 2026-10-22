@@ -23,7 +23,14 @@ export class CronAuthGuard implements CanActivate {
       throw new UnauthorizedException('Cron auth is not configured');
     }
 
-    const providedValue = Array.isArray(provided) ? provided[0] : provided;
+    // Also accept "Authorization: Bearer <CRON_SECRET>" (used by most external cron services).
+    const authorization = request.headers.authorization;
+    const bearer =
+      typeof authorization === 'string' && authorization.startsWith('Bearer ')
+        ? authorization.slice('Bearer '.length)
+        : undefined;
+    const providedValue =
+      (Array.isArray(provided) ? provided[0] : provided) ?? bearer;
 
     if (typeof providedValue !== 'string' || providedValue.length === 0) {
       throw new UnauthorizedException('Cron secret header is missing');

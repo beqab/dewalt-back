@@ -24,6 +24,7 @@ import { TermsModule } from './terms/terms.module';
 import { BrandContentModule } from './brand-content/brand-content.module';
 import { ServiceCenterModule } from './service-center/service-center.module';
 import { TbcInstalmentModule } from './tbcInstalment/tbc-instalment.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -33,6 +34,8 @@ import { TbcInstalmentModule } from './tbcInstalment/tbc-instalment.module';
       // This matches how Next.js apps handle environment variables
       envFilePath: '.env',
     }),
+    // In-process cron jobs (server runs long-lived on Railway)
+    ScheduleModule.forRoot(),
     // Make JwtModule global so all modules can use AdminAuthGuard
     JwtModule.registerAsync({
       imports: [ConfigModule],

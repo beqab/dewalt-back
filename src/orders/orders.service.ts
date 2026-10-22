@@ -295,6 +295,85 @@ export class OrdersService {
     return `პროდუქტი ${name} მოთხოვნილი რაოდენობით არ არის მარაგში. მოთხოვნილი: ${requestedQuantity}, ხელმისაწვდომი: ${availableQuantity} . გთხოვთ განაახლოთ კალათა და სცადოთ თავიდან.`;
   }
 
+  /**
+   * Checks live FINA stock (sellable store only) before payment.
+   * Local quantity is synced by cron, so a product moved to another FINA store
+   * may still show stock on the site until the next sync.
+   * If FINA is unreachable the check is skipped, so sales are not blocked by FINA downtime.
+   */
+  async assertFinaStockAvailable(order: OrderDocument): Promise<void> {
+    const requiredByProduct = this.collectRequiredProductQuantities(order);
+    if (requiredByProduct.size === 0) return;
+
+    const products = await this.productModel
+      .find({
+        _id: {
+          $in: [...requiredByProduct.keys()].map(
+            (id) => new Types.ObjectId(id),
+          ),
+        },
+        finaId: { $exists: true, $ne: null },
+      })
+      .select('_id name finaId')
+      .lean()
+      .exec();
+
+    const finaIds = products
+      .map((p) => Number(p.finaId))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    if (finaIds.length === 0) return;
+
+    const restByFinaId = new Map<number, number>();
+    try {
+      const response = await this.finaService.getSellableProductsRestArray(
+        finaIds,
+        8000,
+      );
+      for (const it of response?.rest || []) {
+        const id = Number(it.id);
+        restByFinaId.set(
+          id,
+          (restByFinaId.get(id) ?? 0) + (Number(it.rest) || 0),
+        );
+      }
+    } catch (error) {
+      console.error('FINA stock check skipped (FINA unavailable)', error);
+      return;
+    }
+
+    for (const product of products) {
+      const finaRest = restByFinaId.get(Number(product.finaId));
+      // No FINA row for this id: cannot judge, rely on local quantity.
+      if (finaRest === undefined) continue;
+
+      const productId = (product._id as Types.ObjectId).toHexString();
+      const requestedQuantity = requiredByProduct.get(productId) ?? 0;
+      const availableQuantity = Math.max(0, finaRest);
+      if (availableQuantity >= requestedQuantity) continue;
+
+      // Bring local stock down right away instead of waiting for the next sync.
+      await this.productModel
+        .updateOne(
+          { _id: product._id },
+          { $min: { quantity: availableQuantity } },
+        )
+        .exec();
+      void this.frontRevalidate.revalidateTags(
+        FRONT_PRODUCTS_TAGS as unknown as string[],
+      );
+
+      throw new BadRequestException(
+        this.buildInsufficientStockMessage({
+          name: this.getLocalizedProductName(
+            (product.name as LocalizedText | undefined) ?? undefined,
+          ),
+          requestedQuantity,
+          availableQuantity,
+        }),
+      );
+    }
+  }
+
   async reserveStockForOrder(order: OrderDocument): Promise<void> {
     const requiredByProduct = this.collectRequiredProductQuantities(order);
 
@@ -666,6 +745,8 @@ export class OrdersService {
     let reservedNow = false;
 
     if (!order.stockReserved) {
+      await this.assertFinaStockAvailable(order);
+
       const claimUpdate: Record<string, unknown> = {
         stockReserved: true,
         stockReservedAt: new Date(),

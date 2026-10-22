@@ -58,15 +58,17 @@ export class FinaController {
 
   @Post('products/rest-array')
   @ApiOperation({
-    summary: 'Get FINA products by id list (getProductsRestArray proxy)',
+    summary:
+      'Get FINA rest by id list, sellable store only (getProductsRestArray proxy)',
   })
   @ApiBody({ type: GetProductsRestArrayDto })
   @ApiResponse({
     status: 200,
-    description: 'FINA getProductsRestArray response (raw)',
+    description:
+      'FINA getProductsRestArray response, filtered to FINA_STOCK_STORE_ID',
     type: GetProductsRestResponseDto,
   })
   async getProductsRestArray(@Body() body: GetProductsRestArrayDto) {
-    return await this.finaService.getProductsRestArray(body.prods);
+    return await this.finaService.getSellableProductsRestArray(body.prods);
   }
 }

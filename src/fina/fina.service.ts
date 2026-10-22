@@ -49,6 +49,15 @@ export class FinaService {
     return 'token';
   }
 
+  /**
+   * Store whose rest is sellable online (default 1 = "მაღაზიის საწყობი").
+   * Other stores (service, warranty, import) must not count as site stock.
+   */
+  get stockStoreId(): number {
+    const raw = Number(this.configService.get<string>('FINA_STOCK_STORE_ID'));
+    return Number.isInteger(raw) && raw > 0 ? raw : 1;
+  }
+
   private get requestTimeoutMs(): number {
     const raw =
       Number(this.configService.get<string>('FINA_TIMEOUT_MS')) || 20000;
@@ -207,6 +216,7 @@ export class FinaService {
     endpoint: string;
     method: 'GET' | 'POST';
     body?: unknown;
+    timeoutMs?: number;
   }): Promise<TResponse> {
     try {
       if (!args.endpoint) {
@@ -228,7 +238,7 @@ export class FinaService {
             ...authHeaders,
           },
           data: args.body ? args.body : undefined,
-          timeout: this.requestTimeoutMs,
+          timeout: args.timeoutMs ?? this.requestTimeoutMs,
           validateStatus: () => true,
         });
       };
@@ -338,18 +348,36 @@ export class FinaService {
    */
   async getProductsRestArray(
     prods: number[],
+    timeoutMs?: number,
   ): Promise<GetProductsRestResponseDto> {
     try {
       const response = await this.requestJson<GetProductsRestResponseDto>({
         endpoint: '/api/operation/getProductsRestArray',
         method: 'POST',
         body: { prods },
+        timeoutMs,
       });
       return response;
     } catch (error) {
       console.log(error, 'error+++');
       throw new BadRequestException(error);
     }
+  }
+
+  /**
+   * Same as getProductsRestArray, but keeps only the sellable store
+   * (FINA_STOCK_STORE_ID), so stock moved to other stores is not shown on the site.
+   */
+  async getSellableProductsRestArray(
+    prods: number[],
+    timeoutMs?: number,
+  ): Promise<GetProductsRestResponseDto> {
+    const response = await this.getProductsRestArray(prods, timeoutMs);
+    const storeId = this.stockStoreId;
+    return {
+      ...response,
+      rest: (response?.rest || []).filter((it) => Number(it.store) === storeId),
+    };
   }
 
   /**
@@ -419,7 +447,7 @@ export class FinaService {
         amount: input.amount,
         currency: input.currency || 'GEL',
         rate: input.rate || 1,
-        store: input.store || 1,
+        store: input.store || this.stockStoreId,
         user: input.user || 3,
         customer: input.customer || 0,
         is_vat: input.is_vat,

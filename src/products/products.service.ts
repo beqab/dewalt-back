@@ -20,6 +20,7 @@ import { FrontRevalidateService } from '../revalidate/front-revalidate.service';
 import { FRONT_PRODUCTS_TAGS } from '../revalidate/front-cache-tags';
 import { FinaService } from '../fina/fina.service';
 import { SyncFinaQuantitiesResponseDto } from './dto/sync-fina-quantities.response.dto';
+import { Order, OrderStatus } from '../orders/entities/order.entity';
 
 const chunk = <T>(arr: T[], size: number): T[][] => {
   const out: T[][] = [];
@@ -49,6 +50,7 @@ export class ProductsService {
     @InjectModel(Category.name) private categoryModel: Model<Category>,
     @InjectModel(ChildCategory.name)
     private childCategoryModel: Model<ChildCategory>,
+    @InjectModel(Order.name) private orderModel: Model<Order>,
     private translationHelper: TranslationHelperService,
     private frontRevalidate: FrontRevalidateService,
     private finaService: FinaService,
@@ -86,11 +88,12 @@ export class ProductsService {
       .map((p) => Number(p.finaId))
       .filter((id) => Number.isFinite(id) && id > 0);
 
-    // Step 3: For each chunked set of finaIds, fetch the latest stock levels from Fina and aggregate the rest quantities
+    // Step 3: For each chunked set of finaIds, fetch the latest stock levels from Fina (sellable store only) and aggregate the rest quantities
     const restByFinaId = new Map<number, number>();
     const requestChunkSize = 50;
     for (const idsChunk of chunk(finaIds, requestChunkSize)) {
-      const response = await this.finaService.getProductsRestArray(idsChunk);
+      const response =
+        await this.finaService.getSellableProductsRestArray(idsChunk);
 
       // For each returned rest item, sum up the quantities for each finaId
       for (const it of response?.rest || []) {
@@ -103,6 +106,26 @@ export class ProductsService {
     }
 
     console.log(restByFinaId, 'restByFinaId');
+
+    // Step 3b: Stock reserved by unpaid (pending) orders is already subtracted
+    // locally but FINA does not know about it, so keep it subtracted.
+    const reservedByProductId = new Map<string, number>();
+    const pendingOrders = await this.orderModel
+      .find(
+        { status: OrderStatus.Pending, stockReserved: true },
+        { 'items.productId': 1, 'items.quantity': 1 },
+      )
+      .lean()
+      .exec();
+    for (const order of pendingOrders) {
+      for (const item of order.items || []) {
+        const key = (item.productId as unknown as Types.ObjectId).toString();
+        reservedByProductId.set(
+          key,
+          (reservedByProductId.get(key) ?? 0) + (Number(item.quantity) || 0),
+        );
+      }
+    }
 
     // Step 4: Prepare bulk update operations for local products whose local quantity is different from 'rest'
     const ops: {
@@ -130,7 +153,8 @@ export class ProductsService {
 
       matchedLocalProducts += 1;
 
-      const nextQty = Math.max(0, rest);
+      const reserved = reservedByProductId.get(String(p._id)) ?? 0;
+      const nextQty = Math.max(0, rest - reserved);
       const currentQty = typeof p.quantity === 'number' ? p.quantity : 0;
 
       // If the quantity is the same, no update needed
@@ -139,7 +163,8 @@ export class ProductsService {
       // Schedule update operation for products where the quantity needs updating
       ops.push({
         updateOne: {
-          filter: { _id: p._id },
+          // Skip if quantity changed meanwhile (order reserved/released); next sync catches up.
+          filter: { _id: p._id, quantity: p.quantity ?? null },
           update: { $set: { quantity: nextQty } },
         },
       });
@@ -149,9 +174,11 @@ export class ProductsService {
     const writeChunkSize = 50;
     for (const opsChunk of chunk(ops, writeChunkSize)) {
       if (opsChunk.length === 0) continue;
-      await this.productModel.bulkWrite(opsChunk, { ordered: false });
+      const result = await this.productModel.bulkWrite(opsChunk, {
+        ordered: false,
+      });
       // Count how many products were actually updated in this chunk
-      updatedProducts += opsChunk.length;
+      updatedProducts += result.modifiedCount;
     }
 
     // Step 6: Invalidate/revalidate frontend cache tags if any products were updated

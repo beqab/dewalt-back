@@ -437,6 +437,8 @@ export class TbcInstalmentService {
     let reservedNow = false;
 
     if (!order.stockReserved) {
+      await this.ordersService.assertFinaStockAvailable(order);
+
       this.ordersService.markStockReservation(order, expiresAt);
       try {
         await this.ordersService.reserveStockForOrder(order);
