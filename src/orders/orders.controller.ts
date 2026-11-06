@@ -66,7 +66,11 @@ export class OrdersController {
     @Body() createPaymentDto: CreatePaymentDto,
     @Query('locale') locale?: 'ka' | 'en',
   ) {
-    return this.ordersService.createPayment(createPaymentDto.orderId, locale);
+    return this.ordersService.createPayment(
+      createPaymentDto.orderId,
+      locale,
+      createPaymentDto.paymentType,
+    );
   }
 
   @Post('callback')
@@ -134,7 +138,7 @@ export class OrdersController {
   @ApiQuery({
     name: 'paymentType',
     required: false,
-    enum: ['regular', 'tbcInstalment'],
+    enum: ['regular', 'tbcInstalment', 'distribution'],
   })
   findAllAdmin(
     @Query('page') page?: number,
@@ -146,7 +150,8 @@ export class OrdersController {
     @Query('finalId') finalId?: string,
     @Query('email') email?: string,
     @Query('userEmail') userEmail?: string,
-    @Query('paymentType') paymentType?: 'regular' | 'tbcInstalment',
+    @Query('paymentType')
+    paymentType?: 'regular' | 'tbcInstalment' | 'distribution',
   ) {
     return this.ordersService.findAll({
       page: page ? Number(page) : undefined,

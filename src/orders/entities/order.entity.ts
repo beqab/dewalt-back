@@ -26,6 +26,11 @@ export enum TbcInstalmentStatus {
   Failed = 'failed',
 }
 
+export enum PaymentOption {
+  Card = 'card',
+  Distribution = 'distribution',
+}
+
 export interface LocalizedText {
   ka: string;
   en: string;
@@ -166,6 +171,13 @@ export class Order {
 
   @Prop({ type: Date, required: false })
   flittCallbackAt?: Date;
+
+  @Prop({
+    type: String,
+    enum: Object.values(PaymentOption),
+    required: false,
+  })
+  paymentOption?: PaymentOption;
 
   @Prop({ type: String, required: false })
   tbcInstalmentSessionId?: string;

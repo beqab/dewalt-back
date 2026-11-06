@@ -54,3 +54,8 @@ pids
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Flitt integration skill (local Claude skill, not part of the app)
+/.claude/skills/flitt-integration-skill/
+/flitt-integration-skill/
+/.flitt-integration-skill/

@@ -14,6 +14,7 @@ import {
   OrderDocument,
   OrderStatus,
   TbcInstalmentStatus,
+  PaymentOption,
 } from './entities/order.entity';
 import { Product, ProductDocument } from '../products/entities/product.entity';
 import { TranslationHelperService } from '../translation/translationHelper.service';
@@ -36,9 +37,18 @@ type PaymentRequestParams = {
   order_id: string;
   response_url: string;
   server_callback_url: string;
-  // payment_method: string;
-  // payment_systems: string;
+  payment_systems?: string;
+  payment_method?: string;
 };
+
+type FlittMerchantConfig = {
+  type: PaymentOption;
+  merchantId: string;
+  secretKey: string;
+};
+
+// Flitt-ის მინიმალური თანხა განაწილებისთვის (GEL)
+const FLITT_INSTALMENT_MIN_AMOUNT = 50;
 
 type PaymentCallbackPayload = {
   rrn?: string;
@@ -156,7 +166,11 @@ export class OrdersService {
         is_vat: true,
         make_entry: true,
         products,
-        pay_type: order.tbcInstalmentStatus ? 3 : 1,
+        pay_type:
+          order.tbcInstalmentStatus ||
+          order.paymentOption === PaymentOption.Distribution
+            ? 3
+            : 1,
       };
 
       console.log(payload, 'payload+++++++++++++++++');
@@ -474,6 +488,49 @@ export class OrdersService {
     return { $regex: this.escapeRegex(trimmed), $options: 'i' } as const;
   }
 
+  // 4055662 - საბარათე/Wallet გადახდები, 4057632 - TBC განაწილება.
+  // თითოეულ merchant-ს საკუთარი secret key აქვს.
+  private getFlittMerchantConfig(
+    type: PaymentOption | `${PaymentOption}`,
+    { required = true }: { required?: boolean } = {},
+  ): FlittMerchantConfig | undefined {
+    const isInstalment = type === PaymentOption.Distribution;
+    const merchantIdEnv = isInstalment
+      ? 'FLITT_DISTRIBUTION_MERCHANT_ID'
+      : 'FLITT_MERCHANT_ID';
+    const secretKeyEnv = isInstalment
+      ? 'FLITT_DISTRIBUTION_SECRET_KEY'
+      : 'FLITT_SECRET_KEY';
+    const merchantId = process.env[merchantIdEnv]?.trim();
+    const secretKey = process.env[secretKeyEnv]?.trim();
+
+    if (!merchantId || !secretKey) {
+      if (!required) return undefined;
+      throw new BadRequestException(
+        `${!merchantId ? merchantIdEnv : secretKeyEnv} is not configured`,
+      );
+    }
+
+    return { type: type as PaymentOption, merchantId, secretKey };
+  }
+
+  private getFlittConfigByMerchantId(merchantId: string): FlittMerchantConfig {
+    const configs = [PaymentOption.Card, PaymentOption.Distribution]
+      .map((type) => this.getFlittMerchantConfig(type, { required: false }))
+      .filter((config): config is FlittMerchantConfig => Boolean(config));
+
+    if (configs.length === 0) {
+      throw new BadRequestException('Flitt merchants are not configured');
+    }
+
+    const config = configs.find((c) => c.merchantId === merchantId);
+    if (!config) {
+      throw new BadRequestException('Flitt callback merchant_id mismatch');
+    }
+
+    return config;
+  }
+
   private stringifyFlittValue(value: unknown): string | undefined {
     if (value === undefined || value === null) return undefined;
     if (typeof value === 'string') {
@@ -722,7 +779,19 @@ export class OrdersService {
     return order.save();
   }
 
-  async createPayment(orderId: string, locale?: 'ka' | 'en') {
+  async createPayment(
+    orderId: string,
+    locale?: 'ka' | 'en',
+    type: PaymentOption | `${PaymentOption}` = PaymentOption.Card,
+  ) {
+    const merchantConfig = this.getFlittMerchantConfig(
+      type,
+    ) as FlittMerchantConfig;
+    // მხოლოდ საიტის ენები (ka/en) გადაეცემა Flitt-ს
+    if (locale !== 'ka' && locale !== 'en') {
+      locale = "ka";
+    }
+
     let order = await this.orderModel.findById(orderId).exec();
     if (!order) {
       throw new NotFoundException('Order not found');
@@ -737,6 +806,30 @@ export class OrdersService {
     if (order.status !== OrderStatus.Pending) {
       throw new BadRequestException(
         'Payment link can only be created for pending orders',
+      );
+    }
+
+    // ერთი order ერთ merchant-ზეა მიბმული: callback-ი სხვა merchant-იდან არ უნდა მივიღოთ.
+    if (order.tbcInstalmentSessionId) {
+      throw new BadRequestException(
+        'Order already has a TBC instalment session',
+      );
+    }
+    if (
+      order.flittMerchantId &&
+      order.flittMerchantId !== merchantConfig.merchantId
+    ) {
+      throw new BadRequestException(
+        'Order is already bound to another payment merchant',
+      );
+    }
+
+    if (
+      type === PaymentOption.Distribution &&
+      order.total < FLITT_INSTALMENT_MIN_AMOUNT
+    ) {
+      throw new BadRequestException(
+        `Instalment payment requires a minimum of ${FLITT_INSTALMENT_MIN_AMOUNT} GEL`,
       );
     }
 
@@ -794,25 +887,25 @@ export class OrdersService {
       }
     }
 
+    order.flittMerchantId = merchantConfig.merchantId;
+    if (type === PaymentOption.Distribution) {
+      order.paymentOption = PaymentOption.Distribution;
+    }
     if (!reservedNow) {
       if (locale && order.locale !== locale) {
         order.locale = locale;
       }
 
       this.markStockReservation(order, expiresAt);
-      await order.save();
     }
+    await order.save();
 
-    console.log(order.total * 100, 'amount * 100');
     const amount = order.total;
     const requestParams: PaymentRequestParams = {
       amount: Math.round(amount * 100),
       currency: 'GEL',
       lang: resolvedLocale,
-      merchant_id: process.env.FLITT_MERCHANT_ID,
-
-      // payment_systems: 'installments',
-      // payment_method: 'x',
+      merchant_id: merchantConfig.merchantId,
       order_desc: 'Order payment',
       order_id: orderId,
       // response_url: `${process.env.FRONT_URL}ka/payment-status?orderId=${orderId}`,
@@ -821,13 +914,20 @@ export class OrdersService {
 
       server_callback_url: `${process.env.API_URL}orders/callback`,
     };
-    const secret_key = process.env.FLITT_SECRET_KEY;
 
-    if (!secret_key) {
-      throw new BadRequestException('FLITT_SECRET_KEY is not configured');
+    // განაწილების merchant-ზე Flitt-ის გვერდზე მხოლოდ განაწილება უნდა გამოჩნდეს.
+    // payment_method: 'tbc' - production, 'x' - Flitt-ის სატესტო ბანკი.
+    if (type === PaymentOption.Distribution) {
+      requestParams.payment_systems = 'installments';
+      requestParams.payment_method =
+        process.env.FLITT_DISTRIBUTION_PAYMENT_METHOD?.trim() || 'tbc';
     }
 
-    const signature = this.buildFlittSignature(requestParams, secret_key);
+    const signature = this.buildFlittSignature(
+      requestParams,
+      merchantConfig.secretKey,
+    );
+    console.log('Flitt checkout request', requestParams);
 
     const requestData = {
       request: {
@@ -863,7 +963,6 @@ export class OrdersService {
       if (typeof checkoutUrl !== 'string' || checkoutUrl.trim().length === 0) {
         throw new BadRequestException('Flitt checkout url missing');
       }
-      console.log(data, 'data+++++++++++++++++');
       return data;
     } catch (error) {
       if (reservedNow) {
@@ -887,22 +986,19 @@ export class OrdersService {
       // Debug log: აქ ჩანს ზუსტად რა flat payload მოვიდა Flitt-დან.
       // სასურველია production-ში ეს გადაიტანოთ structured logger-ზე,
       // რადგან callback-ში შეიძლება სენსიტიური payment metadata მოდიოდეს.
-      console.log(body, 'body+++++');
+      // signature-ს და ბარათის მონაცემებს ლოგში არ ვწერთ.
+      console.log('Flitt callback', {
+        order_id: body.order_id,
+        order_status: body.order_status,
+        response_status: body.response_status,
+        merchant_id: body.merchant_id,
+        payment_id: body.payment_id,
+        payment_system: body.payment_system,
+      });
 
       // სისტემური კონფიგურაცია ამ endpoint-ის სანდოობის ბირთვია:
       // secret key საჭიროა signature-ის გადასამოწმებლად,
       // merchant id კი გვიცავს იმ შემთხვევისგან, თუ უცხო merchant-ის payload მოვა.
-      const secretKey = process.env.FLITT_SECRET_KEY;
-      const merchantIdExpected = process.env.FLITT_MERCHANT_ID;
-
-      if (!secretKey) {
-        throw new BadRequestException('FLITT_SECRET_KEY is not configured');
-      }
-
-      if (!merchantIdExpected) {
-        throw new BadRequestException('FLITT_MERCHANT_ID is not configured');
-      }
-
       // callback-ის ძირითადი ველები ერთ სტრინგ ფორმატში მოგვყავს,
       // რადგან Flitt ნაწილი ველებისა რიცხვადაც შეიძლება გამოგვიგზავნოს.
       // stringifyFlittValue null/undefined-ს ფილტრავს და დანარჩენს
@@ -934,17 +1030,14 @@ export class OrdersService {
       // ვანგარიშობთ იმ signature-ს, რომელიც ამ payload-ს უნდა ჰქონდეს
       // ჩვენი FLITT_SECRET_KEY-ის მიხედვით. შემდეგ timing-safe შედარებით
       // ვამოწმებთ რეალურად მოსულ მნიშვნელობასთან თანხვედრას.
+      // ორი merchant გვაქვს (ბარათი და განაწილება) - secret-ს merchant_id-ით ვარჩევთ.
+      // უცნობი merchant_id აქვე უარიყოფა.
+      const { secretKey } = this.getFlittConfigByMerchantId(merchantId);
       const expectedSignature = this.buildFlittSignature(body, secretKey);
       const receivedSignature = signatureRaw.toLowerCase();
 
       if (!this.signaturesMatch(expectedSignature, receivedSignature)) {
         throw new BadRequestException('Flitt callback signature is invalid');
-      }
-
-      // დამატებითი დაცვა: სწორ signature-თან ერთად merchant_id-ც უნდა ემთხვეოდეს
-      // ჩვენს კონფიგურაციას, რომ სხვა merchant-ის callback არ დამუშავდეს.
-      if (merchantId !== String(merchantIdExpected)) {
-        throw new BadRequestException('Flitt callback merchant_id mismatch');
       }
 
       // ამ flow-ში მხოლოდ GEL ველოდებით. სხვა ვალუტის payload-ის მიღება
@@ -965,6 +1058,22 @@ export class OrdersService {
       // თანხას ვადარებთ შეკვეთაში შენახულ total-ს თეთრებში/კაპიკებში.
       // ეს გვიცავს იმ შემთხვევისგან, როცა signature მართალია,
       // მაგრამ callback სხვა თანხაზეა გამოგზავნილი.
+      // order მიბმულია იმ merchant-ზე, რომლითაც checkout შეიქმნა.
+      // ძველ (მიუბმელ) შეკვეთებზე ვუშვებთ მხოლოდ საბარათე merchant-ს.
+      const boundMerchantId =
+        order.flittMerchantId ??
+        this.getFlittMerchantConfig(
+          order.paymentOption === PaymentOption.Distribution
+            ? PaymentOption.Distribution
+            : PaymentOption.Card,
+          { required: false },
+        )?.merchantId;
+      if (merchantId !== boundMerchantId) {
+        throw new BadRequestException(
+          'Flitt callback merchant_id does not match the order',
+        );
+      }
+
       const expectedAmount = String(Math.round(order.total * 100));
       if (amount !== expectedAmount) {
         throw new BadRequestException('Flitt callback amount mismatch');
@@ -1004,6 +1113,15 @@ export class OrdersService {
       // თუ provider-მა approved არ დააბრუნა, ამ flow-ში შეკვეთას failed-ზე გადავიყვანთ.
       // მომავალში შეიძლება გინდოდეთ უფრო დეტალური mapping:
       // მაგალითად expired / reversed / declined სხვადასხვა შიდა სტატუსებზე.
+      // განაწილება TBC-ში დადასტურებას ითხოვს - შუალედურ სტატუსზე order pending რჩება.
+      if (
+        order.paymentOption === PaymentOption.Distribution &&
+        (orderStatus === 'processing' || orderStatus === 'created')
+      ) {
+        await order.save();
+        return { status: 'ok' };
+      }
+
       if (orderStatus !== 'approved') {
         if (order.stockReserved) {
           await this.releaseReservedStock(order);
@@ -1139,7 +1257,7 @@ export class OrdersService {
     id?: string;
     uuid?: string;
     email?: string;
-    paymentType?: 'regular' | 'tbcInstalment';
+    paymentType?: 'regular' | 'tbcInstalment' | 'distribution';
   }): Promise<{
     data: OrderDocument[];
     total: number;
@@ -1190,7 +1308,7 @@ export class OrdersService {
       if (status) {
         filterParts.push({ status });
       } else if (identifierFilters.length === 0) {
-        if (paymentType === 'tbcInstalment') {
+        if (paymentType === 'tbcInstalment' || paymentType === 'distribution') {
           filterParts.push({ status: { $nin: [OrderStatus.Failed] } });
         } else {
           filterParts.push({
@@ -1231,8 +1349,13 @@ export class OrdersService {
 
       if (paymentType === 'tbcInstalment') {
         filterParts.push({ tbcInstalmentStatus: { $exists: true } });
+      } else if (paymentType === 'distribution') {
+        filterParts.push({ paymentOption: PaymentOption.Distribution });
       } else if (paymentType === 'regular') {
         filterParts.push({ tbcInstalmentStatus: { $exists: false } });
+        filterParts.push({
+          paymentOption: { $ne: PaymentOption.Distribution },
+        });
       }
 
       const filter =
