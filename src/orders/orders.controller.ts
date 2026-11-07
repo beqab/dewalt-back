@@ -31,7 +31,6 @@ import { UserAuthGuard } from '../guards/user.guard';
 import { CurrentUser } from '../decorators/getCurrentUser';
 import type { CurrentUserType } from '../decorators/getCurrentUser';
 import { AdminAuthGuard } from '../guards/admin.guard';
-import { CronAuthGuard } from '../guards/cron.guard';
 import { CurrentUserInterceptor } from '../interceptors/current-user.interceptor';
 
 @ApiTags('orders')
@@ -166,10 +165,11 @@ export class OrdersController {
 
   @Get('admin/release-expired-reservations')
   @HttpCode(HttpStatus.OK)
-  // @UseGuards(CronAuthGuard)
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary:
-      'Release expired stock reservations for pending orders. Protected by X-Cron-Secret.',
+      'Release expired stock reservations for pending orders (admin, manual trigger). Also runs in-process every 5 minutes via ReservationReleaseCron.',
   })
   @ApiQuery({ name: 'minutes', required: false, type: Number })
   releaseExpiredReservations(

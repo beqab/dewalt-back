@@ -700,7 +700,7 @@ export class TbcInstalmentService {
 
   /**
    * Sweep all instalments initiated today and call /confirm on each.
-   * Intended to be triggered by cronjob.org every ~10 minutes.
+   * Intended to run as an in-process @Cron (@nestjs/schedule) every ~10 minutes.
    * Per-order errors are swallowed so one failure doesn't block the batch.
    */
   // async sweepConfirmPending(): Promise<TbcSweepResult> {

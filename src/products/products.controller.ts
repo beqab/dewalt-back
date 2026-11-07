@@ -31,7 +31,6 @@ import {
 import { UpdateSliderNumberDto } from './dto/update-slider-number.dto';
 import { SyncFinaQuantitiesResponseDto } from './dto/sync-fina-quantities.response.dto';
 import { AdminAuthGuard } from '../guards/admin.guard';
-import { CronAuthGuard } from '../guards/cron.guard';
 import { ProductDocument } from './entities';
 
 @ApiTags('products')
@@ -40,8 +39,8 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post('admin/sync-fina-quantities')
-  // @UseGuards(AdminAuthGuard)
-  // @ApiBearerAuth()
+  @UseGuards(AdminAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Sync local product quantities from FINA (by finaId)',
     description:
@@ -53,22 +52,6 @@ export class ProductsController {
     type: SyncFinaQuantitiesResponseDto,
   })
   syncFinaQuantities(): Promise<SyncFinaQuantitiesResponseDto> {
-    return this.productsService.syncQuantitiesFromFina();
-  }
-
-  @Get('cron/sync-fina-quantities')
-  @UseGuards(CronAuthGuard)
-  @ApiOperation({
-    summary: 'Cron: sync local product quantities from FINA',
-    description:
-      'Same as admin/sync-fina-quantities, for external schedulers. Protected by X-Cron-Secret or Authorization: Bearer <CRON_SECRET>.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Sync summary',
-    type: SyncFinaQuantitiesResponseDto,
-  })
-  cronSyncFinaQuantities(): Promise<SyncFinaQuantitiesResponseDto> {
     return this.productsService.syncQuantitiesFromFina();
   }
 

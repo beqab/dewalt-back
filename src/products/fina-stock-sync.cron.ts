@@ -4,7 +4,7 @@ import { Cron } from '@nestjs/schedule';
 import { ProductsService } from './products.service';
 
 /**
- * Syncs Product.quantity from FINA every 15 minutes.
+ * Syncs Product.quantity from FINA every 2 hours.
  * Enabled only when FINA_STOCK_SYNC_CRON=true, so local dev does not run it.
  */
 @Injectable()
@@ -17,7 +17,7 @@ export class FinaStockSyncCron {
     private readonly configService: ConfigService,
   ) {}
 
-  @Cron('0 */15 * * * *', { name: 'fina-stock-sync' })
+  @Cron('0 0 */2 * * *', { name: 'fina-stock-sync' })
   async handle(): Promise<void> {
     if (this.configService.get<string>('FINA_STOCK_SYNC_CRON') !== 'true') {
       return;

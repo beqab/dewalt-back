@@ -1565,7 +1565,6 @@ export class OrdersService {
   async releaseExpiredReservations(
     minutes?: number,
   ): Promise<{ scanned: number; released: number; ttlMinutes: number }> {
-    console.log(minutes, 'minutes+++++++++++++++++');
     const ttlMinutes =
       typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0
         ? minutes

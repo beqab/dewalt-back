@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { ReservationReleaseCron } from './reservation-release.cron';
 import { Order, OrderSchema } from './entities/order.entity';
 import { Product, ProductSchema } from '../products/entities/product.entity';
 import { TranslationModule } from '../translation/translation.module';
@@ -23,7 +24,7 @@ import { FinaModule } from '../fina/fina.module';
     FinaModule,
   ],
   controllers: [OrdersController],
-  providers: [OrdersService],
+  providers: [OrdersService, ReservationReleaseCron],
   exports: [OrdersService],
 })
 export class OrdersModule {}

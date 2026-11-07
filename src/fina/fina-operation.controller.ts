@@ -1,5 +1,12 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { AdminAuthGuard } from '../guards/admin.guard';
 import { FinaService } from './fina.service';
 import { SaveDocProductOutDto } from './dto/save-doc-product-out.dto';
 import { GetPriceTypesResponseDto } from './dto/get-price-types.response.dto';
@@ -9,6 +16,8 @@ type SaveDocProductOutResponse = { id: number; ex?: string | null };
 
 @ApiTags('fina')
 @Controller('api/operation')
+@UseGuards(AdminAuthGuard)
+@ApiBearerAuth()
 export class FinaOperationController {
   constructor(private readonly finaService: FinaService) {}
 
@@ -93,7 +102,6 @@ export class FinaOperationController {
   saveDocProductOut(
     @Body() body: SaveDocProductOutDto,
   ): Promise<SaveDocProductOutResponse> {
-    console.log(body, 'body<insert>');
     return this.finaService.saveDocProductOut(body);
   }
 }
